@@ -11,6 +11,7 @@ import (
 	"image/color"
 	"image/draw"
 	"log"
+	"math"
 	"os"
 )
 
@@ -107,20 +108,10 @@ func main() {
 
 func NewColourSource(mode int, colors ...color.Color) image.Image {
 	sz := 8
-	//template := make([][]bool, sz)
-	//for i := 0; i < sz; i++ {
-	//	template[i] = make([]bool, sz)
-	//}
-	//if mode > 0 {
-	//	for i := 0; i < sz*sz; i += (sz * sz) / mode {
-	//		template[i/sz][i%sz] = true
-	//	}
-	//}
 	return &ColourSource{
-		mode:   (mode / (256 / (sz * sz))) % (sz * sz),
+		mode:   mode,
 		colors: colors,
-		//template: template,
-		sz: sz,
+		sz:     sz,
 	}
 }
 
@@ -147,51 +138,37 @@ func (cs *ColourSource) Bounds() image.Rectangle {
 }
 
 func (cs *ColourSource) At(x, y int) color.Color {
-	//if cs.template[y % cs.sz][x % cs.sz] {
-	//	return color.Black
-	//}
-	//xv := x % (cs.sz)
-	//yv := y % (cs.sz)
-	//n := yv * cs.sz + xv
-	//if cs.mode > 0 && n % (cs.sz*cs.sz / cs.mode) == 0 {
-	//	return color.Black
-	//}
+	south := []int{
+		1,
+		0,
+		0,
+		0,
+	}
 	n := cs.mode
-	south := 0
-	east := 0
-	if (0b000001 & n) > 0 {
-		south |= 0b001
+	for i := 0; i < 4 && n > 0; i++ {
+		v := 5
+		if i == 0 {
+			v -= 1
+		}
+		south[i] = n % 4
+		n /= 4
 	}
-	if (0b000100 & n) > 0 {
-		south |= 0b010
-	}
-	if (0b010000 & n) > 0 {
-		south |= 0b100
-	}
-	if (0b000010 & n) > 0 {
-		east |= 0b001
-	}
-	if (0b001000 & n) > 0 {
-		east |= 0b010
-	}
-	if (0b100000 & n) > 0 {
-		east |= 0b100
-	}
-	//southEast := 0
-	ry := y % cs.sz
-	rx := x % cs.sz
-	if south > 0 {
-		ny := ry - rx
-		if ny%south == 0 {
+
+	xp := x % cs.sz
+	dp := (y + cs.sz - xp) % cs.sz
+
+	if cs.mode >= xp {
+		xp = 3 - (3 - xp)
+		if xp < 0 {
+			xp = -xp
+		}
+		sv := south[xp%len(south)]
+		sv = int(math.Pow(float64(2), float64(4-sv)))
+		if sv > 0 && dp%sv == 0 {
 			return color.Black
 		}
 	}
-	if east > 0 {
-		nx := rx - ry
-		if nx%east == 0 {
-			return color.Black
-		}
-	}
+
 	return color.White
 }
 
