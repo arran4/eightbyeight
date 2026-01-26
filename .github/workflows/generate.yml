@@ -1,0 +1,44 @@
+name: Generate and Fix
+
+on:
+  pull_request:
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+
+      - name: Run fmt and fix
+        run: |
+          go fmt ./...
+          go fix ./...
+
+      - name: Generate Examples
+        run: |
+          go run ./cmd/eightbyeight
+
+      - name: Check for changes
+        id: check_changes
+        run: |
+          if [[ -n $(git status --porcelain) ]]; then
+            echo "changes=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Commit and Force Push
+        if: steps.check_changes.outputs.changes == 'true'
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          git add .
+          git commit -m "chore: auto-fix and generate examples"
+          git push origin HEAD:${{ github.head_ref }} --force
