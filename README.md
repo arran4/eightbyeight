@@ -1,6 +1,6 @@
 # EightByEight Pattern Generator
 
-This project generates BMP images containing grids of 8x8 pixel patterns. It explores different permutations of patterns based on a modular arithmetic logic.
+This project generates PNG images containing grids of 8x8 pixel patterns. It explores different permutations of patterns based on a modular arithmetic logic for colour dithering.
 
 ## Description
 
@@ -14,11 +14,11 @@ To run the project, you need Go installed.
 go run cmd/eightbyeight/main.go
 ```
 
-This will generate a file named `out.bmp` in the current directory.
+This will generate a file named `out.png` in the current directory.
 
 ## Output
 
-The output is a BMP image with a title, a grid of patterns, and labels.
+The output is a PNG image with a title, a grid of patterns, and labels.
 
 ## Examples
 
@@ -26,7 +26,7 @@ Examples of generated patterns can be found in the `exampledata/` directory.
 
 You can also view the latest generated output:
 
-![Generated Output](out.bmp)
+![Generated Output](out.png)
 
 ## Builder
 

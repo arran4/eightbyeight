@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"github.com/golang/freetype/truetype"
 	"golang.org/x/image/bmp"
+	"image/png"
+	"strings"
 	"golang.org/x/image/font"
 	"golang.org/x/image/font/gofont/gomono"
 	"golang.org/x/image/math/fixed"
@@ -142,8 +144,14 @@ func (b *GridBuilder) Save(filename string) error {
 		return fmt.Errorf("failed to create file: %w", err)
 	}
 	defer f.Close()
-	if err := bmp.Encode(f, img); err != nil {
-		return err
+	if strings.HasSuffix(strings.ToLower(filename), ".png") {
+		if err := png.Encode(f, img); err != nil {
+			return err
+		}
+	} else {
+		if err := bmp.Encode(f, img); err != nil {
+			return err
+		}
 	}
 	log.Printf("Done")
 	return nil
