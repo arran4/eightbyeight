@@ -158,10 +158,22 @@ func IntMax(i1, i2 int) int {
 
 func NewColourSource(mode int, colors ...color.Color) image.Image {
 	sz := 8
+	south := [4]int{
+		1,
+		0,
+		0,
+		0,
+	}
+	n := mode
+	for i := 0; i < 4 && n > 0; i++ {
+		south[i] = n % 4
+		n /= 4
+	}
 	return &ColourSource{
 		mode:   mode,
 		colors: colors,
 		sz:     sz,
+		south:  south,
 	}
 }
 
@@ -169,6 +181,7 @@ type ColourSource struct {
 	colors []color.Color
 	mode   int
 	sz     int
+	south  [4]int
 }
 
 func (cs *ColourSource) ColorModel() color.Model {
@@ -187,22 +200,6 @@ func (cs *ColourSource) Bounds() image.Rectangle {
 }
 
 func (cs *ColourSource) At(x, y int) color.Color {
-	south := []int{
-		1,
-		0,
-		0,
-		0,
-	}
-	n := cs.mode
-	for i := 0; i < 4 && n > 0; i++ {
-		v := 5
-		if i == 0 {
-			v -= 1
-		}
-		south[i] = n % 4
-		n /= 4
-	}
-
 	xp := x % cs.sz
 	dp := (y + cs.sz - xp) % cs.sz
 
@@ -211,7 +208,7 @@ func (cs *ColourSource) At(x, y int) color.Color {
 		if xp < 0 {
 			xp = -xp
 		}
-		sv := south[xp%len(south)]
+		sv := cs.south[xp%len(cs.south)]
 		sv = int(math.Pow(float64(2), float64(4-sv)))
 		if sv > 0 && dp%sv == 0 {
 			// Use the second color (index 1) for "foreground"/black if available
