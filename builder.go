@@ -11,7 +11,6 @@ import (
 	"image/color"
 	"image/draw"
 	"log"
-	"math"
 	"os"
 )
 
@@ -212,7 +211,7 @@ func (cs *ColourSource) At(x, y int) color.Color {
 			xp = -xp
 		}
 		sv := south[xp%len(south)]
-		sv = int(math.Pow(float64(2), float64(4-sv)))
+		sv = 1 << (4 - sv)
 		if sv > 0 && dp%sv == 0 {
 			// Use the second color (index 1) for "foreground"/black if available
 			if len(cs.colors) > 1 {
