@@ -13,6 +13,7 @@ import (
 	"log"
 	"math"
 	"os"
+	"strconv"
 )
 
 type GridBuilder struct {
@@ -126,7 +127,7 @@ func (b *GridBuilder) Generate() image.Image {
 				r.Max.X -= (dx - b.CellSize) / 2
 			}
 			mode := x + y*lineLength
-			d.DrawString(fmt.Sprintf("  %d", mode))
+			d.DrawString("  " + strconv.Itoa(mode))
 			// Pass the palette to NewColourSource
 			draw.Draw(i, r, NewColourSource(mode, b.Palette...), image.Point{}, draw.Src)
 		}
