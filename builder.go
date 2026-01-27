@@ -13,6 +13,7 @@ import (
 	"log"
 	"math"
 	"os"
+	"sync"
 )
 
 type GridBuilder struct {
@@ -49,17 +50,25 @@ func (b *GridBuilder) WithColors(palette []color.Color) *GridBuilder {
 	return b
 }
 
+var (
+	fontOnce   sync.Once
+	cachedFont *truetype.Font
+)
+
 func (b *GridBuilder) Generate() image.Image {
 	log.Printf("Setup")
-	fc, err := truetype.Parse(gomono.TTF)
-	if err != nil {
-		log.Panicf("Font parse error: %#v", err)
-	}
+	fontOnce.Do(func() {
+		var err error
+		cachedFont, err = truetype.Parse(gomono.TTF)
+		if err != nil {
+			log.Panicf("Font parse error: %#v", err)
+		}
+	})
 
 	lines := b.Rows
 	lineLength := b.Columns
 
-	fontFace := truetype.NewFace(fc, &truetype.Options{
+	fontFace := truetype.NewFace(cachedFont, &truetype.Options{
 		Size: 16,
 		DPI:  150,
 	})
