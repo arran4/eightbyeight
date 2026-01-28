@@ -212,7 +212,14 @@ func (cs *ColourSource) At(x, y int) color.Color {
 	xp := x % cs.sz
 	dp := (y + cs.sz - xp) % cs.sz
 
-	if cs.mode >= xp {
+	useMultiColor := len(cs.colors) > 2
+	var fgIdx, bgIdx int
+	if useMultiColor {
+		bgIdx = cs.mode % len(cs.colors)
+		fgIdx = (cs.mode / len(cs.colors)) % len(cs.colors)
+	}
+
+	if useMultiColor || cs.mode >= xp {
 		xp = 3 - (3 - xp)
 		if xp < 0 {
 			xp = -xp
@@ -220,6 +227,9 @@ func (cs *ColourSource) At(x, y int) color.Color {
 		sv := cs.south[xp%len(cs.south)]
 		sv = int(math.Pow(float64(2), float64(4-sv)))
 		if sv > 0 && dp%sv == 0 {
+			if useMultiColor {
+				return cs.colors[fgIdx]
+			}
 			// Use the second color (index 1) for "foreground"/black if available
 			if len(cs.colors) > 1 {
 				return cs.colors[1]
@@ -228,6 +238,9 @@ func (cs *ColourSource) At(x, y int) color.Color {
 		}
 	}
 
+	if useMultiColor {
+		return cs.colors[bgIdx]
+	}
 	// Use the first color (index 0) for "background"/white if available
 	if len(cs.colors) > 0 {
 		return cs.colors[0]
