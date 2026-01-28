@@ -4,18 +4,18 @@ import (
 	"fmt"
 	"github.com/golang/freetype/truetype"
 	"golang.org/x/image/bmp"
-	"image/png"
-	"strings"
 	"golang.org/x/image/font"
 	"golang.org/x/image/font/gofont/gomono"
 	"golang.org/x/image/math/fixed"
 	"image"
 	"image/color"
 	"image/draw"
+	"image/png"
 	"log"
 	"math"
 	"os"
 	"strconv"
+	"strings"
 )
 
 type GridBuilder struct {
