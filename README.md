@@ -14,10 +14,11 @@ To run the project, you need Go installed.
 go run cmd/eightbyeight/main.go
 ```
 
-This will generate three files in the current directory:
+This will generate four files in the current directory:
 - `out_bw.png`: Classic Black on White
 - `out_terminal.png`: Green on Black (Terminal style)
 - `out_solarized.png`: Solarized Light color scheme
+- `out_mixing.png`: CGA Color Mixing
 
 ## Output
 
@@ -27,9 +28,19 @@ The output are PNG images with a title, a grid of patterns, and labels.
 
 Examples of generated patterns can be found in the `exampledata/` directory.
 
-You can also view one of the generated outputs:
+Here are the generated outputs:
 
+### Classic - Black on White
+![Classic Output](out_bw.png)
+
+### Terminal - Green on Black
+![Terminal Output](out_terminal.png)
+
+### Solarized Light
 ![Solarized Output](out_solarized.png)
+
+### CGA Color Mixing
+![CGA Mixing Output](out_mixing.png)
 
 ## Builder
 
