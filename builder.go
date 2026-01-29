@@ -23,17 +23,34 @@ type GridBuilder struct {
 	Rows     int
 	Columns  int
 	CellSize int
-	Palette  []color.Color
+	Palette     []color.Color
+	FontSize    float64
+	DPI         float64
+	LabelSizing string
 }
 
 func NewGridBuilder() *GridBuilder {
 	return &GridBuilder{
-		Title:    "Grid Draw",
-		Rows:     10,
-		Columns:  4,
-		CellSize: 64,
-		Palette:  []color.Color{color.White, color.Black},
+		Title:       "Grid Draw",
+		Rows:        10,
+		Columns:     4,
+		CellSize:    64,
+		Palette:     []color.Color{color.White, color.Black},
+		FontSize:    16,
+		DPI:         150,
+		LabelSizing: "__255__",
 	}
+}
+
+func (b *GridBuilder) WithFont(size, dpi float64) *GridBuilder {
+	b.FontSize = size
+	b.DPI = dpi
+	return b
+}
+
+func (b *GridBuilder) WithLabelSizing(s string) *GridBuilder {
+	b.LabelSizing = s
+	return b
 }
 
 func (b *GridBuilder) WithTitle(title string) *GridBuilder {
@@ -63,13 +80,13 @@ func (b *GridBuilder) Generate() image.Image {
 	lineLength := b.Columns
 
 	fontFace := truetype.NewFace(fc, &truetype.Options{
-		Size: 16,
-		DPI:  150,
+		Size: b.FontSize,
+		DPI:  b.DPI,
 	})
 	fontHeight := fontFace.Metrics().Ascent
 	lineHeight := fontFace.Metrics().Height + fontFace.Metrics().Descent
 
-	labelBounds, _ := font.BoundString(fontFace, fmt.Sprintf("__%d__", 255))
+	labelBounds, _ := font.BoundString(fontFace, b.LabelSizing)
 	titleBounds, _ := font.BoundString(fontFace, b.Title)
 
 	totalSize := image.Rect(0, 0, IntMax(titleBounds.Max.X.Ceil(), IntMax(labelBounds.Max.X.Ceil(), b.CellSize)*lineLength), (lineHeight.Ceil()+b.CellSize)*(lines)+lineHeight.Ceil())
