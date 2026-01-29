@@ -6,8 +6,8 @@ import (
 	"image"
 	"image/color"
 	"io"
-	"testing"
 	"os"
+	"testing"
 )
 
 // Custom BMP reader for the specific formats found in exampledata
@@ -141,10 +141,10 @@ func compareImages(img1, img2 image.Image) (int, float64, error) {
 
 func TestReproduceExampleData(t *testing.T) {
 	tests := []struct {
-		filename         string
-		expectedTitle    string
-		expectedColors   []color.Color
-		expectedRows     int
+		filename            string
+		expectedTitle       string
+		expectedColors      []color.Color
+		expectedRows        int
 		expectedCols        int
 		expectedFontSize    float64
 		expectedDPI         float64
@@ -163,8 +163,8 @@ func TestReproduceExampleData(t *testing.T) {
 			expectedLabelSizing: "  255",
 		},
 		{
-			filename:      "exampledata/COLRMODS.BMP",
-			expectedTitle: "Colour Modes", // Guess
+			filename:            "exampledata/COLRMODS.BMP",
+			expectedTitle:       "Colour Modes",                          // Guess
 			expectedColors:      []color.Color{color.White, color.Black}, // Placeholder
 			expectedRows:        12,
 			expectedCols:        16,
@@ -173,8 +173,8 @@ func TestReproduceExampleData(t *testing.T) {
 			expectedLabelSizing: "  255",
 		},
 		{
-			filename:      "exampledata/EARLYRED.BMP",
-			expectedTitle: "Early Red", // Guess
+			filename:            "exampledata/EARLYRED.BMP",
+			expectedTitle:       "Early Red",                             // Guess
 			expectedColors:      []color.Color{color.White, color.Black}, // Placeholder
 			expectedRows:        12,
 			expectedCols:        16,
