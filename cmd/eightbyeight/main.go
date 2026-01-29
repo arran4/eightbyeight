@@ -64,7 +64,7 @@ func main() {
 	}
 	if err := eightbyeight.NewGridBuilder().
 		WithTitle("CGA Color Mixing").
-		WithDimensions(16*16/4, 4).
+		WithDimensions(16, 16).
 		WithColors(cgaPalette).
 		Save("out_mixing.png"); err != nil {
 		log.Panic(err)
