@@ -5,9 +5,12 @@ import (
 	"fmt"
 	"image"
 	"image/color"
+	"image/draw"
 	"image/png"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"testing"
 )
 
@@ -33,18 +36,18 @@ func compareImages(img1, img2 image.Image) (int, float64, error) {
 	b1 := img1.Bounds()
 	b2 := img2.Bounds()
 
-	intersect := b1.Intersect(b2)
-	if intersect.Empty() {
-		return 0, 0, fmt.Errorf("no intersection between %v and %v", b1, b2)
+	// Strict bounds check for 8x8 cells
+	if b1.Dx() != b2.Dx() || b1.Dy() != b2.Dy() {
+		return 0, 0, fmt.Errorf("bounds mismatch: %v != %v", b1, b2)
 	}
 
 	diffPixels := 0
-	totalPixels := intersect.Dx() * intersect.Dy()
+	totalPixels := b1.Dx() * b1.Dy()
 
-	for y := intersect.Min.Y; y < intersect.Max.Y; y++ {
-		for x := intersect.Min.X; x < intersect.Max.X; x++ {
-			c1 := img1.At(x, y)
-			c2 := img2.At(x, y)
+	for y := 0; y < b1.Dy(); y++ {
+		for x := 0; x < b1.Dx(); x++ {
+			c1 := img1.At(b1.Min.X+x, b1.Min.Y+y)
+			c2 := img2.At(b2.Min.X+x, b2.Min.Y+y)
 
 			r1, g1, b1, _ := c1.RGBA()
 			r2, g2, b2, _ := c2.RGBA()
@@ -58,14 +61,16 @@ func compareImages(img1, img2 image.Image) (int, float64, error) {
 	return diffPixels, float64(diffPixels) / float64(totalPixels), nil
 }
 
-func TestReproduceExampleData(t *testing.T) {
-	files, err := filepath.Glob("exampledata/*.json")
+func TestReproducePatterns(t *testing.T) {
+	configFiles, err := filepath.Glob("exampledata/*.json")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	for _, configFile := range files {
+	for _, configFile := range configFiles {
 		t.Run(configFile, func(t *testing.T) {
+			datasetName := strings.TrimSuffix(filepath.Base(configFile), ".json")
+
 			// Read Config
 			f, err := os.Open(configFile)
 			if err != nil {
@@ -78,44 +83,59 @@ func TestReproduceExampleData(t *testing.T) {
 				t.Fatalf("Failed to decode config: %v", err)
 			}
 
-			// Read Target Image
-			imgFile := configFile[:len(configFile)-5] + ".png"
-			imgF, err := os.Open(imgFile)
-			if err != nil {
-				t.Fatalf("Failed to open image %s: %v", imgFile, err)
-			}
-			defer imgF.Close()
-
-			targetImg, err := png.Decode(imgF)
-			if err != nil {
-				t.Fatalf("Failed to decode image: %v", err)
-			}
-
 			// Build Palette
 			var palette []color.Color
 			for _, c := range cfg.Colors {
 				palette = append(palette, c.ToColor())
 			}
 
-			// Generate
-			b := NewGridBuilder().
-				WithTitle(cfg.Title).
-				WithDimensions(cfg.Rows, cfg.Columns).
-				WithColors(palette).
-				WithFont(cfg.FontSize, cfg.DPI).
-				WithLabelSizing(cfg.LabelSizing)
-
-			genImg := b.Generate()
-
-			// Compare
-			diff, diffPct, err := compareImages(genImg, targetImg)
+			// Iterate through expected sub-images
+			cellsDir := filepath.Join("exampledata", datasetName)
+			cellFiles, err := filepath.Glob(filepath.Join(cellsDir, "*.png"))
 			if err != nil {
-				t.Errorf("Comparison failed: %v", err)
-			} else {
-				if genImg.Bounds() != targetImg.Bounds() {
-					t.Logf("Warning: bounds mismatch. Generated %v, Target %v. Comparing intersection.", genImg.Bounds(), targetImg.Bounds())
+				t.Fatalf("Failed to glob cells: %v", err)
+			}
+			if len(cellFiles) == 0 {
+				t.Fatalf("No cell images found in %s", cellsDir)
+			}
+
+			for _, cellFile := range cellFiles {
+				// Filename is mode.png
+				base := filepath.Base(cellFile)
+				modeStr := strings.TrimSuffix(base, ".png")
+				mode, err := strconv.Atoi(modeStr)
+				if err != nil {
+					t.Logf("Skipping non-numeric file: %s", cellFile)
+					continue
 				}
-				t.Logf("Difference in intersection: %d pixels (%.2f%%)", diff, diffPct*100)
+
+				t.Run(fmt.Sprintf("Mode_%d", mode), func(t *testing.T) {
+					// Read Target Image
+					imgF, err := os.Open(cellFile)
+					if err != nil {
+						t.Fatalf("Failed to open image %s: %v", cellFile, err)
+					}
+					defer imgF.Close()
+
+					targetImg, err := png.Decode(imgF)
+					if err != nil {
+						t.Fatalf("Failed to decode image: %v", err)
+					}
+
+					// Generate 8x8 pattern
+					src := NewColourSource(mode, palette...)
+					// ColourSource is infinite, need to draw it into an 8x8 image
+					genImg := image.NewRGBA(image.Rect(0, 0, 8, 8))
+					draw.Draw(genImg, genImg.Bounds(), src, image.Point{}, draw.Src)
+
+					// Compare
+					diff, diffPct, err := compareImages(genImg, targetImg)
+					if err != nil {
+						t.Errorf("Comparison failed: %v", err)
+					} else if diff > 0 {
+						t.Errorf("Difference: %d pixels (%.2f%%)", diff, diffPct*100)
+					}
+				})
 			}
 		})
 	}
