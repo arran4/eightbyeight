@@ -26,8 +26,16 @@ type Config struct {
 	FontSize    float64
 	DPI         float64
 	LabelSizing string
+	// CustomGrid allows defining explicit cells for irregular layouts
+	CustomGrid []CustomCell
 }
 
+type CustomCell struct {
+	Mode int
+	Rect image.Rectangle
+}
+
+// readBMP (kept from previous steps)
 func readBMP(path string) (image.Image, error) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -113,8 +121,12 @@ func readBMP(path string) (image.Image, error) {
 	return img, nil
 }
 
+
 func isUniform(img image.Image) bool {
 	b := img.Bounds()
+	if b.Dx() == 0 || b.Dy() == 0 {
+		return true
+	}
 	first := img.At(b.Min.X, b.Min.Y)
 	r1, g1, b1, a1 := first.RGBA()
 
@@ -134,7 +146,7 @@ func compareImages(img1, img2 image.Image) (int, float64, error) {
 	b1 := img1.Bounds()
 	b2 := img2.Bounds()
 
-	// Strict bounds check for 8x8 cells
+	// Strict bounds check
 	if b1.Dx() != b2.Dx() || b1.Dy() != b2.Dy() {
 		return 0, 0, fmt.Errorf("bounds mismatch: %v != %v", b1, b2)
 	}
@@ -160,7 +172,7 @@ func compareImages(img1, img2 image.Image) (int, float64, error) {
 }
 
 func TestReproducePatterns(t *testing.T) {
-	// 1. Define Configs and Palette
+	// 1. Define Configs
 	cgaPalette := []color.Color{
 		color.RGBA{0, 0, 0, 255},       // 0: Black
 		color.RGBA{128, 0, 0, 255},     // 1: Maroon
@@ -180,15 +192,34 @@ func TestReproducePatterns(t *testing.T) {
 		color.RGBA{255, 255, 255, 255}, // 15: White
 	}
 
+	// Generate custom grid for 128BWGR based on analysis
+	// 110 is at (116, 112). Col stride 96. Row stride 80 (approx). Size 67x39.
+	// Labels logic: Col 1 starts at 114, dec 20. Col 2 starts at 110, dec 20.
+	customGrid128 := []CustomCell{}
+
+	// Column X starts
+	colXs := []int{20, 116, 212, 308, 404}
+	// Row Y starts
+	rowYs := []int{112, 192, 272, 352, 432}
+	// Start Labels per column
+	startLabels := []int{114, 110, 106, 102, 98}
+
+	for cIdx, startX := range colXs {
+		currentLabel := startLabels[cIdx]
+		for _, startY := range rowYs {
+			customGrid128 = append(customGrid128, CustomCell{
+				Mode: currentLabel,
+				Rect: image.Rect(startX, startY, startX+67, startY+39),
+			})
+			currentLabel -= 20
+		}
+	}
+
 	configs := map[string]Config{
 		"128BWGR.BMP": {
 			Title:       "128 BWGR",
-			Rows:        5,
-			Columns:     10,
-			FontSize:    8,
-			DPI:         150,
-			LabelSizing: "  255",
-			// File analysis shows only Black and White palette.
+			// Rows/Cols unused if CustomGrid present
+			CustomGrid:  customGrid128,
 			Colors: []color.Color{
 				color.RGBA{0, 0, 0, 255},
 				color.RGBA{255, 255, 255, 255},
@@ -196,7 +227,7 @@ func TestReproducePatterns(t *testing.T) {
 		},
 		"COLRMODS.BMP": {
 			Title:       "Colour Modes",
-			Rows:        12,
+			Rows:        16,
 			Columns:     16,
 			FontSize:    8,
 			DPI:         150,
@@ -205,7 +236,7 @@ func TestReproducePatterns(t *testing.T) {
 		},
 		"EARLYRED.BMP": {
 			Title:       "Early Red",
-			Rows:        12,
+			Rows:        16,
 			Columns:     16,
 			FontSize:    8,
 			DPI:         150,
@@ -214,17 +245,16 @@ func TestReproducePatterns(t *testing.T) {
 		},
 	}
 
-	// 2. Setup Font (needed for extraction logic)
+	// 2. Setup Font
 	fc, err := truetype.Parse(gomono.TTF)
 	if err != nil {
 		t.Fatalf("Font parse error: %#v", err)
 	}
 
-	// 3. Iterate over configs/BMPs
+	// 3. Iterate
 	for filename, cfg := range configs {
 		t.Run(filename, func(t *testing.T) {
 			filePath := filepath.Join("exampledata", filename)
-			// Ensure BMP exists
 			if _, err := os.Stat(filePath); os.IsNotExist(err) {
 				t.Fatalf("Reference BMP missing: %s", filePath)
 			}
@@ -234,104 +264,96 @@ func TestReproducePatterns(t *testing.T) {
 				t.Fatalf("Failed to read BMP %s: %v", filePath, err)
 			}
 
-			// Ensure Output Directory Exists
 			datasetName := strings.TrimSuffix(filename, ".BMP")
 			outDir := filepath.Join("exampledata", datasetName)
 			if err := os.MkdirAll(outDir, 0755); err != nil {
 				t.Fatalf("Failed to create dir %s: %v", outDir, err)
 			}
 
-			// 4. Extraction Logic
-			cellSize := 64 // default
-			fontFace := truetype.NewFace(fc, &truetype.Options{
-				Size: cfg.FontSize,
-				DPI:  cfg.DPI,
-			})
-			lineHeight := fontFace.Metrics().Height + fontFace.Metrics().Descent
-			labelBounds, _ := font.BoundString(fontFace, cfg.LabelSizing)
-
-			lines := cfg.Rows
-			lineLength := cfg.Columns
-
-			extractedCount := 0
-
-			for y := 0; y < lines; y++ {
-				yTop := lineHeight.Ceil() + (lineHeight.Ceil()+cellSize)*(y)
-				for x := 0; x < lineLength; x++ {
-					xLeft := IntMax(labelBounds.Max.X.Ceil(), cellSize) * x
-
-					width := IntMax(labelBounds.Max.X.Ceil(), cellSize)
-					r := image.Rect(
-						xLeft,
-						yTop,
-						xLeft+width-1,
-						yTop+cellSize-1,
-					)
-
-					// Centering adjustment
-					dy, dx := r.Dy(), r.Dx()
-					if dy > cellSize {
-						r.Min.Y += (dy - cellSize) / 2
-						r.Max.Y -= (dy - cellSize) / 2
-					}
-					if dx > cellSize {
-						r.Min.X += (dx - cellSize) / 2
-						r.Max.X -= (dx - cellSize) / 2
-					}
-
-					intersect := r.Intersect(fullImg.Bounds())
-					if intersect.Empty() {
-						continue
-					}
-
-					// Extract 8x8 sample from top-left of cell
-					sampleRect := image.Rect(r.Min.X, r.Min.Y, r.Min.X+8, r.Min.Y+8)
-					sampleRect = sampleRect.Intersect(fullImg.Bounds())
-
-					if sampleRect.Dx() != 8 || sampleRect.Dy() != 8 {
-						continue
-					}
-
-					subImg := image.NewRGBA(image.Rect(0, 0, 8, 8))
-					draw.Draw(subImg, subImg.Bounds(), fullImg, sampleRect.Min, draw.Src)
-
-					if isUniform(subImg) {
-						continue
-					}
-
-					mode := x + y*lineLength
-					extractedCount++
-
-					// Save reference PNG
-					outFile := filepath.Join(outDir, fmt.Sprintf("%X.png", mode))
-					f, err := os.Create(outFile)
-					if err != nil {
-						t.Errorf("Failed to create %s: %v", outFile, err)
-						continue
-					}
-					png.Encode(f, subImg)
-					f.Close()
-
-					// 5. Test Verification (Generate and Compare)
-					t.Run(fmt.Sprintf("Mode_%X", mode), func(t *testing.T) {
-						// Generate
-						src := NewColourSource(mode, cfg.Colors...)
-						genImg := image.NewRGBA(image.Rect(0, 0, 8, 8))
-						draw.Draw(genImg, genImg.Bounds(), src, image.Point{}, draw.Src)
-
-						// Compare
-						diff, diffPct, err := compareImages(genImg, subImg)
-						if err != nil {
-							t.Errorf("Comparison failed: %v", err)
-						} else if diff > 0 {
-							t.Errorf("Difference: %d pixels (%.2f%%)", diff, diffPct*100)
-						}
-					})
+			// Extraction loop
+			if len(cfg.CustomGrid) > 0 {
+				for _, cell := range cfg.CustomGrid {
+					processCell(t, fullImg, cell.Rect, cell.Mode, cfg.Colors, outDir)
 				}
-			}
-			if extractedCount == 0 {
-				t.Errorf("No valid patterns extracted for %s", filename)
+			} else {
+				// Standard Grid
+				cellSize := 64 // default
+				fontFace := truetype.NewFace(fc, &truetype.Options{
+					Size: cfg.FontSize,
+					DPI:  cfg.DPI,
+				})
+				lineHeight := fontFace.Metrics().Height + fontFace.Metrics().Descent
+				labelBounds, _ := font.BoundString(fontFace, cfg.LabelSizing)
+
+				for y := 0; y < cfg.Rows; y++ {
+					yTop := lineHeight.Ceil() + (lineHeight.Ceil()+cellSize)*(y)
+					for x := 0; x < cfg.Columns; x++ {
+						xLeft := IntMax(labelBounds.Max.X.Ceil(), cellSize) * x
+						width := IntMax(labelBounds.Max.X.Ceil(), cellSize)
+						r := image.Rect(
+							xLeft,
+							yTop,
+							xLeft + width - 1,
+							yTop + cellSize - 1,
+						)
+
+						// Centering logic (from Builder)
+						dy, dx := r.Dy(), r.Dx()
+						if dy > cellSize {
+							r.Min.Y += (dy - cellSize) / 2
+							r.Max.Y -= (dy - cellSize) / 2
+						}
+						if dx > cellSize {
+							r.Min.X += (dx - cellSize) / 2
+							r.Max.X -= (dx - cellSize) / 2
+						}
+
+						mode := x + y*cfg.Columns
+						processCell(t, fullImg, r, mode, cfg.Colors, outDir)
+					}
+				}
 			}
 		})
 	}
+}
+
+func processCell(t *testing.T, fullImg image.Image, r image.Rectangle, mode int, palette []color.Color, outDir string) {
+	intersect := r.Intersect(fullImg.Bounds())
+	if intersect.Empty() {
+		return
+	}
+
+	// Extract full cell/pattern rect
+	subImg := image.NewRGBA(image.Rect(0, 0, r.Dx(), r.Dy()))
+	draw.Draw(subImg, subImg.Bounds(), fullImg, r.Min, draw.Src)
+
+	if isUniform(subImg) {
+		return
+	}
+
+	// Save reference PNG (Decimal Name)
+	outFile := filepath.Join(outDir, fmt.Sprintf("%d.png", mode))
+	f, err := os.Create(outFile)
+	if err != nil {
+		t.Errorf("Failed to create %s: %v", outFile, err)
+		return
+	}
+	png.Encode(f, subImg)
+	f.Close()
+
+	// Verify
+	t.Run(fmt.Sprintf("Mode_%d", mode), func(t *testing.T) {
+		// Generate
+		src := NewColourSource(mode, palette...)
+		genImg := image.NewRGBA(image.Rect(0, 0, r.Dx(), r.Dy()))
+		draw.Draw(genImg, genImg.Bounds(), src, image.Point{}, draw.Src)
+
+		// Compare
+		diff, diffPct, err := compareImages(genImg, subImg)
+		if err != nil {
+			t.Errorf("Comparison failed: %v", err)
+		} else if diff > 0 {
+			t.Errorf("Difference: %d pixels (%.2f%%)", diff, diffPct*100)
+		}
+	})
 }
