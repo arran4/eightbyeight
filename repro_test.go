@@ -1,35 +1,134 @@
 package eightbyeight
 
 import (
-	"encoding/json"
+	"encoding/binary"
 	"fmt"
 	"image"
 	"image/color"
 	"image/draw"
 	"image/png"
+	"io"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/golang/freetype/truetype"
+	"golang.org/x/image/font"
+	"golang.org/x/image/font/gofont/gomono"
 )
 
 type Config struct {
-	Title       string        `json:"title"`
-	Rows        int           `json:"rows"`
-	Columns     int           `json:"columns"`
-	Colors      []ColorConfig `json:"colors"`
-	FontSize    float64       `json:"fontSize"`
-	DPI         float64       `json:"dpi"`
-	LabelSizing string        `json:"labelSizing"`
+	Title       string
+	Rows        int
+	Columns     int
+	Colors      []color.Color
+	FontSize    float64
+	DPI         float64
+	LabelSizing string
 }
 
-type ColorConfig struct {
-	R, G, B, A uint8
+func readBMP(path string) (image.Image, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	header := make([]byte, 54)
+	if _, err := io.ReadFull(f, header); err != nil {
+		return nil, err
+	}
+
+	if header[0] != 'B' || header[1] != 'M' {
+		return nil, fmt.Errorf("not a BMP file")
+	}
+
+	dataOffset := binary.LittleEndian.Uint32(header[10:14])
+	width := int32(binary.LittleEndian.Uint32(header[18:22]))
+	height := int32(binary.LittleEndian.Uint32(header[22:26]))
+	bpp := binary.LittleEndian.Uint16(header[28:30])
+
+	var palette []color.Color
+	if bpp <= 8 {
+		paletteSize := int(dataOffset) - 54
+		numColors := paletteSize / 4
+		if numColors > 0 {
+			pData := make([]byte, paletteSize)
+			if _, err := io.ReadFull(f, pData); err != nil {
+				return nil, err
+			}
+			for i := 0; i < numColors; i++ {
+				b := pData[i*4]
+				g := pData[i*4+1]
+				r := pData[i*4+2]
+				palette = append(palette, color.RGBA{R: r, G: g, B: b, A: 255})
+			}
+		}
+	}
+
+	if _, err := f.Seek(int64(dataOffset), 0); err != nil {
+		return nil, err
+	}
+
+	img := image.NewPaletted(image.Rect(0, 0, int(width), int(height)), palette)
+
+	var rowSize int
+	if bpp == 1 {
+		rowSize = (int(width) + 7) / 8
+	} else if bpp == 4 {
+		rowSize = (int(width) + 1) / 2
+	} else {
+		return nil, fmt.Errorf("unsupported bpp: %d", bpp)
+	}
+	padding := (4 - (rowSize % 4)) % 4
+	stride := rowSize + padding
+
+	rowData := make([]byte, stride)
+
+	for y := int(height) - 1; y >= 0; y-- {
+		if _, err := io.ReadFull(f, rowData); err != nil {
+			return nil, err
+		}
+		for x := 0; x < int(width); x++ {
+			var colorIdx uint8
+			if bpp == 1 {
+				byteIdx := x / 8
+				bitIdx := 7 - (x % 8)
+				colorIdx = (rowData[byteIdx] >> bitIdx) & 1
+			} else if bpp == 4 {
+				byteIdx := x / 2
+				if x%2 == 0 {
+					colorIdx = (rowData[byteIdx] >> 4) & 0x0F
+				} else {
+					colorIdx = rowData[byteIdx] & 0x0F
+				}
+			}
+			if int(colorIdx) < len(palette) {
+				img.SetColorIndex(x, y, colorIdx)
+			}
+		}
+	}
+
+	return img, nil
 }
 
-func (c ColorConfig) ToColor() color.Color {
-	return color.RGBA{c.R, c.G, c.B, c.A}
+
+func isUniform(img image.Image) bool {
+	b := img.Bounds()
+	first := img.At(b.Min.X, b.Min.Y)
+	r1, g1, b1, a1 := first.RGBA()
+
+	for y := b.Min.Y; y < b.Max.Y; y++ {
+		for x := b.Min.X; x < b.Max.X; x++ {
+			c := img.At(x, y)
+			r, g, b, a := c.RGBA()
+			if r != r1 || g != g1 || b != b1 || a != a1 {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 func compareImages(img1, img2 image.Image) (int, float64, error) {
@@ -62,80 +161,177 @@ func compareImages(img1, img2 image.Image) (int, float64, error) {
 }
 
 func TestReproducePatterns(t *testing.T) {
-	configFiles, err := filepath.Glob("exampledata/*.json")
-	if err != nil {
-		t.Fatal(err)
+	// 1. Define Configs and Palette
+	cgaPalette := []color.Color{
+		color.RGBA{0, 0, 0, 255},       // 0: Black
+		color.RGBA{128, 0, 0, 255},     // 1: Maroon
+		color.RGBA{0, 128, 0, 255},     // 2: Green
+		color.RGBA{128, 128, 0, 255},   // 3: Olive
+		color.RGBA{0, 0, 128, 255},     // 4: Navy
+		color.RGBA{128, 0, 128, 255},   // 5: Purple
+		color.RGBA{0, 128, 128, 255},   // 6: Teal
+		color.RGBA{128, 128, 128, 255}, // 7: Silver
+		color.RGBA{192, 192, 192, 255}, // 8: Gray
+		color.RGBA{255, 0, 0, 255},     // 9: Red
+		color.RGBA{0, 255, 0, 255},     // 10: Lime
+		color.RGBA{255, 255, 0, 255},   // 11: Yellow
+		color.RGBA{0, 0, 255, 255},     // 12: Blue
+		color.RGBA{255, 0, 255, 255},   // 13: Fuchsia
+		color.RGBA{0, 255, 255, 255},   // 14: Aqua
+		color.RGBA{255, 255, 255, 255}, // 15: White
 	}
 
-	for _, configFile := range configFiles {
-		t.Run(configFile, func(t *testing.T) {
-			datasetName := strings.TrimSuffix(filepath.Base(configFile), ".json")
+	configs := map[string]Config{
+		"128BWGR.BMP": {
+			Title:       "128 BWGR",
+			Rows:        5,
+			Columns:     10,
+			FontSize:    8,
+			DPI:         150,
+			LabelSizing: "  255",
+			// File analysis shows only Black and White palette.
+			Colors: []color.Color{
+				color.RGBA{0, 0, 0, 255},
+				color.RGBA{255, 255, 255, 255},
+			},
+		},
+		"COLRMODS.BMP": {
+			Title:       "Colour Modes",
+			Rows:        12,
+			Columns:     16,
+			FontSize:    8,
+			DPI:         150,
+			LabelSizing: "  255",
+			Colors:      cgaPalette,
+		},
+		"EARLYRED.BMP": {
+			Title:       "Early Red",
+			Rows:        12,
+			Columns:     16,
+			FontSize:    8,
+			DPI:         150,
+			LabelSizing: "  255",
+			Colors:      cgaPalette,
+		},
+	}
 
-			// Read Config
-			f, err := os.Open(configFile)
+	// 2. Setup Font (needed for extraction logic)
+	fc, err := truetype.Parse(gomono.TTF)
+	if err != nil {
+		t.Fatalf("Font parse error: %#v", err)
+	}
+
+	// 3. Iterate over configs/BMPs
+	for filename, cfg := range configs {
+		t.Run(filename, func(t *testing.T) {
+			filePath := filepath.Join("exampledata", filename)
+			// Ensure BMP exists
+			if _, err := os.Stat(filePath); os.IsNotExist(err) {
+				t.Fatalf("Reference BMP missing: %s", filePath)
+			}
+
+			fullImg, err := readBMP(filePath)
 			if err != nil {
-				t.Fatalf("Failed to open config: %v", err)
-			}
-			defer f.Close()
-
-			var cfg Config
-			if err := json.NewDecoder(f).Decode(&cfg); err != nil {
-				t.Fatalf("Failed to decode config: %v", err)
+				t.Fatalf("Failed to read BMP %s: %v", filePath, err)
 			}
 
-			// Build Palette
-			var palette []color.Color
-			for _, c := range cfg.Colors {
-				palette = append(palette, c.ToColor())
+			// Ensure Output Directory Exists
+			datasetName := strings.TrimSuffix(filename, ".BMP")
+			outDir := filepath.Join("exampledata", datasetName)
+			if err := os.MkdirAll(outDir, 0755); err != nil {
+				t.Fatalf("Failed to create dir %s: %v", outDir, err)
 			}
 
-			// Iterate through expected sub-images
-			cellsDir := filepath.Join("exampledata", datasetName)
-			cellFiles, err := filepath.Glob(filepath.Join(cellsDir, "*.png"))
-			if err != nil {
-				t.Fatalf("Failed to glob cells: %v", err)
-			}
-			if len(cellFiles) == 0 {
-				t.Fatalf("No cell images found in %s", cellsDir)
-			}
+			// 4. Extraction Logic
+			cellSize := 64 // default
+			fontFace := truetype.NewFace(fc, &truetype.Options{
+				Size: cfg.FontSize,
+				DPI:  cfg.DPI,
+			})
+			lineHeight := fontFace.Metrics().Height + fontFace.Metrics().Descent
+			labelBounds, _ := font.BoundString(fontFace, cfg.LabelSizing)
 
-			for _, cellFile := range cellFiles {
-				// Filename is mode.png
-				base := filepath.Base(cellFile)
-				modeStr := strings.TrimSuffix(base, ".png")
-				mode, err := strconv.Atoi(modeStr)
-				if err != nil {
-					t.Logf("Skipping non-numeric file: %s", cellFile)
-					continue
+			lines := cfg.Rows
+			lineLength := cfg.Columns
+
+			extractedCount := 0
+
+			for y := 0; y < lines; y++ {
+				yTop := lineHeight.Ceil() + (lineHeight.Ceil()+cellSize)*(y)
+				for x := 0; x < lineLength; x++ {
+					xLeft := IntMax(labelBounds.Max.X.Ceil(), cellSize) * x
+
+					width := IntMax(labelBounds.Max.X.Ceil(), cellSize)
+					r := image.Rect(
+						xLeft,
+						yTop,
+						xLeft + width - 1,
+						yTop + cellSize - 1,
+					)
+
+					// Centering adjustment
+					dy, dx := r.Dy(), r.Dx()
+					if dy > cellSize {
+						r.Min.Y += (dy - cellSize) / 2
+						r.Max.Y -= (dy - cellSize) / 2
+					}
+					if dx > cellSize {
+						r.Min.X += (dx - cellSize) / 2
+						r.Max.X -= (dx - cellSize) / 2
+					}
+
+					intersect := r.Intersect(fullImg.Bounds())
+					if intersect.Empty() {
+						continue
+					}
+
+					// Extract 8x8 sample from top-left of cell
+					sampleRect := image.Rect(r.Min.X, r.Min.Y, r.Min.X+8, r.Min.Y+8)
+					sampleRect = sampleRect.Intersect(fullImg.Bounds())
+
+					if sampleRect.Dx() != 8 || sampleRect.Dy() != 8 {
+						continue
+					}
+
+					subImg := image.NewRGBA(image.Rect(0, 0, 8, 8))
+					draw.Draw(subImg, subImg.Bounds(), fullImg, sampleRect.Min, draw.Src)
+
+					if isUniform(subImg) {
+						continue
+					}
+
+					mode := x + y*lineLength
+					extractedCount++
+
+					// Save reference PNG
+					outFile := filepath.Join(outDir, fmt.Sprintf("%X.png", mode))
+					f, err := os.Create(outFile)
+					if err != nil {
+						t.Errorf("Failed to create %s: %v", outFile, err)
+						continue
+					}
+					png.Encode(f, subImg)
+					f.Close()
+
+					// 5. Test Verification (Generate and Compare)
+					t.Run(fmt.Sprintf("Mode_%X", mode), func(t *testing.T) {
+						// Generate
+						src := NewColourSource(mode, cfg.Colors...)
+						genImg := image.NewRGBA(image.Rect(0, 0, 8, 8))
+						draw.Draw(genImg, genImg.Bounds(), src, image.Point{}, draw.Src)
+
+						// Compare
+						diff, diffPct, err := compareImages(genImg, subImg)
+						if err != nil {
+							t.Errorf("Comparison failed: %v", err)
+						} else if diff > 0 {
+							t.Errorf("Difference: %d pixels (%.2f%%)", diff, diffPct*100)
+						}
+					})
 				}
-
-				t.Run(fmt.Sprintf("Mode_%d", mode), func(t *testing.T) {
-					// Read Target Image
-					imgF, err := os.Open(cellFile)
-					if err != nil {
-						t.Fatalf("Failed to open image %s: %v", cellFile, err)
-					}
-					defer imgF.Close()
-
-					targetImg, err := png.Decode(imgF)
-					if err != nil {
-						t.Fatalf("Failed to decode image: %v", err)
-					}
-
-					// Generate 8x8 pattern
-					src := NewColourSource(mode, palette...)
-					// ColourSource is infinite, need to draw it into an 8x8 image
-					genImg := image.NewRGBA(image.Rect(0, 0, 8, 8))
-					draw.Draw(genImg, genImg.Bounds(), src, image.Point{}, draw.Src)
-
-					// Compare
-					diff, diffPct, err := compareImages(genImg, targetImg)
-					if err != nil {
-						t.Errorf("Comparison failed: %v", err)
-					} else if diff > 0 {
-						t.Errorf("Difference: %d pixels (%.2f%%)", diff, diffPct*100)
-					}
-				})
+			}
+			if extractedCount == 0 {
+				t.Errorf("No valid patterns extracted for %s", filename)
 			}
 		})
 	}

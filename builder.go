@@ -19,10 +19,10 @@ import (
 )
 
 type GridBuilder struct {
-	Title       string
-	Rows        int
-	Columns     int
-	CellSize    int
+	Title    string
+	Rows     int
+	Columns  int
+	CellSize int
 	Palette     []color.Color
 	FontSize    float64
 	DPI         float64
