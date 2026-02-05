@@ -113,6 +113,7 @@ func readBMP(path string) (image.Image, error) {
 	return img, nil
 }
 
+
 func isUniform(img image.Image) bool {
 	b := img.Bounds()
 	first := img.At(b.Min.X, b.Min.Y)
@@ -264,8 +265,8 @@ func TestReproducePatterns(t *testing.T) {
 					r := image.Rect(
 						xLeft,
 						yTop,
-						xLeft+width-1,
-						yTop+cellSize-1,
+						xLeft + width - 1,
+						yTop + cellSize - 1,
 					)
 
 					// Centering adjustment
