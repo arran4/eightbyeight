@@ -122,10 +122,18 @@ func trimWhitespace(img image.Image) image.Image {
 	for y := b.Min.Y; y < b.Max.Y; y++ {
 		for x := b.Min.X; x < b.Max.X; x++ {
 			if !isWhite(img.At(x, y)) {
-				if x < minX { minX = x }
-				if x > maxX { maxX = x }
-				if y < minY { minY = y }
-				if y > maxY { maxY = y }
+				if x < minX {
+					minX = x
+				}
+				if x > maxX {
+					maxX = x
+				}
+				if y < minY {
+					minY = y
+				}
+				if y > maxY {
+					maxY = y
+				}
 				found = true
 			}
 		}
@@ -200,7 +208,7 @@ func TestReproducePatterns(t *testing.T) {
 
 	configs := map[string]Config{
 		"128BWGR.BMP": {
-			Title:       "128 BWGR",
+			Title: "128 BWGR",
 			Colors: []color.Color{
 				color.RGBA{0, 0, 0, 255},
 				color.RGBA{255, 255, 255, 255},
@@ -215,13 +223,13 @@ func TestReproducePatterns(t *testing.T) {
 			},
 		},
 		"COLRMODS.BMP": {
-			Title:       "Colour Modes",
-			Colors:      cgaPalette,
+			Title:      "Colour Modes",
+			Colors:     cgaPalette,
 			IDSequence: makeRange(0, 255),
 		},
 		"EARLYRED.BMP": {
-			Title:       "Early Red",
-			Colors:      cgaPalette,
+			Title:      "Early Red",
+			Colors:     cgaPalette,
 			IDSequence: makeRange(0, 255),
 		},
 	}
@@ -339,10 +347,18 @@ func findPatternBlobs(img image.Image) []image.Rectangle {
 					p := q[0]
 					q = q[1:]
 
-					if p.X < minX { minX = p.X }
-					if p.X > maxX { maxX = p.X }
-					if p.Y < minY { minY = p.Y }
-					if p.Y > maxY { maxY = p.Y }
+					if p.X < minX {
+						minX = p.X
+					}
+					if p.X > maxX {
+						maxX = p.X
+					}
+					if p.Y < minY {
+						minY = p.Y
+					}
+					if p.Y > maxY {
+						maxY = p.Y
+					}
 
 					dirs := []image.Point{{0, 1}, {0, -1}, {1, 0}, {-1, 0}}
 					for _, d := range dirs {
