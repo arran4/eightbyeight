@@ -210,7 +210,7 @@ func TestReproducePatterns(t *testing.T) {
 			Title:       "Early Red",
 			LabelSizing: "  255",
 			Colors:      cgaPalette,
-			IDSequence: makeRange(0, 255),
+			IDSequence:  makeRange(0, 255),
 		},
 	}
 
@@ -312,10 +312,18 @@ func findPatternBlobs(img image.Image) []image.Rectangle {
 					p := q[0]
 					q = q[1:]
 
-					if p.X < minX { minX = p.X }
-					if p.X > maxX { maxX = p.X }
-					if p.Y < minY { minY = p.Y }
-					if p.Y > maxY { maxY = p.Y }
+					if p.X < minX {
+						minX = p.X
+					}
+					if p.X > maxX {
+						maxX = p.X
+					}
+					if p.Y < minY {
+						minY = p.Y
+					}
+					if p.Y > maxY {
+						maxY = p.Y
+					}
 
 					dirs := []image.Point{{0, 1}, {0, -1}, {1, 0}, {-1, 0}}
 					for _, d := range dirs {
