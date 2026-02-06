@@ -113,30 +113,46 @@ func isWhite(c color.Color) bool {
 	return r > 0xF000 && g > 0xF000 && b > 0xF000
 }
 
-func isUniform(img image.Image) bool {
+func trimWhitespace(img image.Image) image.Image {
 	b := img.Bounds()
-	if b.Dx() == 0 || b.Dy() == 0 {
-		return true
-	}
-	first := img.At(b.Min.X, b.Min.Y)
-	r1, g1, b1, a1 := first.RGBA()
+	minX, minY, maxX, maxY := b.Max.X, b.Max.Y, b.Min.X, b.Min.Y
+	found := false
 
 	for y := b.Min.Y; y < b.Max.Y; y++ {
 		for x := b.Min.X; x < b.Max.X; x++ {
-			c := img.At(x, y)
-			r, g, b, a := c.RGBA()
-			if r != r1 || g != g1 || b != b1 || a != a1 {
-				return false
+			if !isWhite(img.At(x, y)) {
+				if x < minX { minX = x }
+				if x > maxX { maxX = x }
+				if y < minY { minY = y }
+				if y > maxY { maxY = y }
+				found = true
 			}
 		}
 	}
-	return true
+
+	if !found {
+		return img // Return original if all white (should generally not happen with filtered blobs)
+	}
+
+	// Add 1 to max to include the pixel
+	return subImage(img, image.Rect(minX, minY, maxX+1, maxY+1))
+}
+
+func subImage(img image.Image, r image.Rectangle) image.Image {
+	if paletted, ok := img.(*image.Paletted); ok {
+		return paletted.SubImage(r)
+	}
+	// Fallback for generic images
+	dst := image.NewRGBA(image.Rect(0, 0, r.Dx(), r.Dy()))
+	draw.Draw(dst, dst.Bounds(), img, r.Min, draw.Src)
+	return dst
 }
 
 func compareImages(img1, img2 image.Image) (int, float64, error) {
 	b1 := img1.Bounds()
 	b2 := img2.Bounds()
 
+	// Strict bounds check
 	if b1.Dx() != b2.Dx() || b1.Dy() != b2.Dy() {
 		return 0, 0, fmt.Errorf("bounds mismatch: %v != %v", b1, b2)
 	}
@@ -184,12 +200,10 @@ func TestReproducePatterns(t *testing.T) {
 	configs := map[string]Config{
 		"128BWGR.BMP": {
 			Title:       "128 BWGR",
-			LabelSizing: "  255",
 			Colors: []color.Color{
 				color.RGBA{0, 0, 0, 255},
 				color.RGBA{255, 255, 255, 255},
 			},
-			// Reading order sequence
 			IDSequence: []int{
 				114, 110, 106, 102, 98, 14, 4,
 				94, 90, 86, 82, 78, 10, 3,
@@ -201,16 +215,13 @@ func TestReproducePatterns(t *testing.T) {
 		},
 		"COLRMODS.BMP": {
 			Title:       "Colour Modes",
-			LabelSizing: "  255",
 			Colors:      cgaPalette,
-			// Assuming row-major 0..N
 			IDSequence: makeRange(0, 255),
 		},
 		"EARLYRED.BMP": {
 			Title:       "Early Red",
-			LabelSizing: "  255",
 			Colors:      cgaPalette,
-			IDSequence:  makeRange(0, 255),
+			IDSequence: makeRange(0, 255),
 		},
 	}
 
@@ -232,26 +243,36 @@ func TestReproducePatterns(t *testing.T) {
 				t.Fatalf("Failed to create dir %s: %v", outDir, err)
 			}
 
-			// Segmentation
 			blobs := findPatternBlobs(fullImg)
 			if len(blobs) == 0 {
 				t.Errorf("No patterns found in %s", filename)
 				return
 			}
 
-			// Sort Blobs
 			sortBlobsSpatial(blobs)
 
-			// Process
 			for i, r := range blobs {
 				if i >= len(cfg.IDSequence) {
-					break // Found more blobs than expected IDs
+					break
 				}
 				mode := cfg.IDSequence[i]
 
-				// Extract
-				subImg := image.NewRGBA(image.Rect(0, 0, r.Dx(), r.Dy()))
-				draw.Draw(subImg, subImg.Bounds(), fullImg, r.Min, draw.Src)
+				// Extract and Trim
+				// Note: r is the bounding box of the blob, so it's already "trimmed" to the content
+				// detected by findPatternBlobs. But findPatternBlobs might pick up a blob that includes whitespace
+				// if the connectivity check is loose? No, it only picks non-white pixels.
+				// So r *is* the bounding box of non-white pixels.
+				// However, if the pattern has internal white space that connects to the border?
+				// No, the bounding box `r` computed in BFS is `minX, minY, maxX, maxY` of the *visited non-white pixels*.
+				// So it is already tight-cropped to the pattern content!
+				// UNLESS the label is connected to the pattern.
+				// If label is connected, `r` includes both.
+				// But I can't easily split them without complex logic.
+				// I'll assume they are disjoint or I accept the label is part of the "pattern image" for now
+				// (user said "which one is text label...").
+				// But if I want to remove the border *around* it... `r` already excludes external whitespace.
+
+				subImg := subImage(fullImg, r)
 
 				// Save
 				outFile := filepath.Join(outDir, fmt.Sprintf("%d.png", mode))
@@ -266,7 +287,7 @@ func TestReproducePatterns(t *testing.T) {
 				// Verify
 				t.Run(fmt.Sprintf("Mode_%d", mode), func(t *testing.T) {
 					src := NewColourSource(mode, cfg.Colors...)
-					genImg := image.NewRGBA(image.Rect(0, 0, r.Dx(), r.Dy()))
+					genImg := image.NewRGBA(image.Rect(0, 0, subImg.Bounds().Dx(), subImg.Bounds().Dy()))
 					draw.Draw(genImg, genImg.Bounds(), src, image.Point{}, draw.Src)
 
 					diff, diffPct, err := compareImages(genImg, subImg)
@@ -302,7 +323,6 @@ func findPatternBlobs(img image.Image) []image.Rectangle {
 			}
 
 			if !isWhite(img.At(x, y)) {
-				// BFS
 				minX, maxX := x, x
 				minY, maxY := y, y
 				q := []image.Point{{x, y}}
@@ -312,18 +332,10 @@ func findPatternBlobs(img image.Image) []image.Rectangle {
 					p := q[0]
 					q = q[1:]
 
-					if p.X < minX {
-						minX = p.X
-					}
-					if p.X > maxX {
-						maxX = p.X
-					}
-					if p.Y < minY {
-						minY = p.Y
-					}
-					if p.Y > maxY {
-						maxY = p.Y
-					}
+					if p.X < minX { minX = p.X }
+					if p.X > maxX { maxX = p.X }
+					if p.Y < minY { minY = p.Y }
+					if p.Y > maxY { maxY = p.Y }
 
 					dirs := []image.Point{{0, 1}, {0, -1}, {1, 0}, {-1, 0}}
 					for _, d := range dirs {
@@ -341,9 +353,8 @@ func findPatternBlobs(img image.Image) []image.Rectangle {
 				}
 
 				rect := image.Rect(minX, minY, maxX+1, maxY+1)
-				// Filter for "Pattern" size (heuristic: patterns are larger than labels)
-				// 110.png is 67x39. Labels are small text.
-				// Let's filter > 20x20
+				// Filter > 20x20 to likely exclude labels and include patterns
+				// Labels are usually small height (e.g. 10-15px) or width.
 				if rect.Dx() > 20 && rect.Dy() > 20 {
 					blobs = append(blobs, rect)
 				}
@@ -355,9 +366,8 @@ func findPatternBlobs(img image.Image) []image.Rectangle {
 
 func sortBlobsSpatial(blobs []image.Rectangle) {
 	sort.Slice(blobs, func(i, j int) bool {
-		// Row binning logic
-		// Assume rows are separated by at least 20px
-		if blobs[i].Min.Y/40 != blobs[j].Min.Y/40 {
+		// Row binning
+		if blobs[i].Min.Y/32 != blobs[j].Min.Y/32 {
 			return blobs[i].Min.Y < blobs[j].Min.Y
 		}
 		return blobs[i].Min.X < blobs[j].Min.X
