@@ -10,32 +10,19 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
-
-	"github.com/golang/freetype/truetype"
-	"golang.org/x/image/font"
-	"golang.org/x/image/font/gofont/gomono"
 )
 
 type Config struct {
 	Title       string
-	Rows        int
-	Columns     int
 	Colors      []color.Color
-	FontSize    float64
-	DPI         float64
 	LabelSizing string
-	// CustomGrid allows defining explicit cells for irregular layouts
-	CustomGrid []CustomCell
+	IDSequence  []int
 }
 
-type CustomCell struct {
-	Mode int
-	Rect image.Rectangle
-}
-
-// readBMP (kept from previous steps)
+// readBMP handles 1-bit and 4-bit BMPs
 func readBMP(path string) (image.Image, error) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -121,6 +108,11 @@ func readBMP(path string) (image.Image, error) {
 	return img, nil
 }
 
+func isWhite(c color.Color) bool {
+	r, g, b, _ := c.RGBA()
+	return r > 0xF000 && g > 0xF000 && b > 0xF000
+}
+
 func isUniform(img image.Image) bool {
 	b := img.Bounds()
 	if b.Dx() == 0 || b.Dy() == 0 {
@@ -145,7 +137,6 @@ func compareImages(img1, img2 image.Image) (int, float64, error) {
 	b1 := img1.Bounds()
 	b2 := img2.Bounds()
 
-	// Strict bounds check
 	if b1.Dx() != b2.Dx() || b1.Dy() != b2.Dy() {
 		return 0, 0, fmt.Errorf("bounds mismatch: %v != %v", b1, b2)
 	}
@@ -171,7 +162,6 @@ func compareImages(img1, img2 image.Image) (int, float64, error) {
 }
 
 func TestReproducePatterns(t *testing.T) {
-	// 1. Define Configs
 	cgaPalette := []color.Color{
 		color.RGBA{0, 0, 0, 255},       // 0: Black
 		color.RGBA{128, 0, 0, 255},     // 1: Maroon
@@ -191,66 +181,39 @@ func TestReproducePatterns(t *testing.T) {
 		color.RGBA{255, 255, 255, 255}, // 15: White
 	}
 
-	// Generate custom grid for 128BWGR based on analysis
-	// 110 is at (116, 112). Col stride 96. Row stride 80 (approx). Size 67x39.
-	// Labels logic: Col 1 starts at 114, dec 20. Col 2 starts at 110, dec 20.
-	customGrid128 := []CustomCell{}
-
-	// Column X starts
-	colXs := []int{20, 116, 212, 308, 404}
-	// Row Y starts
-	rowYs := []int{112, 192, 272, 352, 432}
-	// Start Labels per column
-	startLabels := []int{114, 110, 106, 102, 98}
-
-	for cIdx, startX := range colXs {
-		currentLabel := startLabels[cIdx]
-		for _, startY := range rowYs {
-			customGrid128 = append(customGrid128, CustomCell{
-				Mode: currentLabel,
-				Rect: image.Rect(startX, startY, startX+67, startY+39),
-			})
-			currentLabel -= 20
-		}
-	}
-
 	configs := map[string]Config{
 		"128BWGR.BMP": {
-			Title: "128 BWGR",
-			// Rows/Cols unused if CustomGrid present
-			CustomGrid: customGrid128,
+			Title:       "128 BWGR",
+			LabelSizing: "  255",
 			Colors: []color.Color{
 				color.RGBA{0, 0, 0, 255},
 				color.RGBA{255, 255, 255, 255},
 			},
+			// Reading order sequence
+			IDSequence: []int{
+				114, 110, 106, 102, 98, 14, 4,
+				94, 90, 86, 82, 78, 10, 3,
+				74, 70, 66, 62, 58, 9, 2,
+				54, 50, 46, 42, 38, 8, 1,
+				34, 30, 26, 22, 18, 7, 0,
+				6, 5,
+			},
 		},
 		"COLRMODS.BMP": {
 			Title:       "Colour Modes",
-			Rows:        16,
-			Columns:     16,
-			FontSize:    8,
-			DPI:         150,
 			LabelSizing: "  255",
 			Colors:      cgaPalette,
+			// Assuming row-major 0..N
+			IDSequence: makeRange(0, 255),
 		},
 		"EARLYRED.BMP": {
 			Title:       "Early Red",
-			Rows:        16,
-			Columns:     16,
-			FontSize:    8,
-			DPI:         150,
 			LabelSizing: "  255",
 			Colors:      cgaPalette,
+			IDSequence: makeRange(0, 255),
 		},
 	}
 
-	// 2. Setup Font
-	fc, err := truetype.Parse(gomono.TTF)
-	if err != nil {
-		t.Fatalf("Font parse error: %#v", err)
-	}
-
-	// 3. Iterate
 	for filename, cfg := range configs {
 		t.Run(filename, func(t *testing.T) {
 			filePath := filepath.Join("exampledata", filename)
@@ -269,90 +232,126 @@ func TestReproducePatterns(t *testing.T) {
 				t.Fatalf("Failed to create dir %s: %v", outDir, err)
 			}
 
-			// Extraction loop
-			if len(cfg.CustomGrid) > 0 {
-				for _, cell := range cfg.CustomGrid {
-					processCell(t, fullImg, cell.Rect, cell.Mode, cfg.Colors, outDir)
+			// Segmentation
+			blobs := findPatternBlobs(fullImg)
+			if len(blobs) == 0 {
+				t.Errorf("No patterns found in %s", filename)
+				return
+			}
+
+			// Sort Blobs
+			sortBlobsSpatial(blobs)
+
+			// Process
+			for i, r := range blobs {
+				if i >= len(cfg.IDSequence) {
+					break // Found more blobs than expected IDs
 				}
-			} else {
-				// Standard Grid
-				cellSize := 64 // default
-				fontFace := truetype.NewFace(fc, &truetype.Options{
-					Size: cfg.FontSize,
-					DPI:  cfg.DPI,
-				})
-				lineHeight := fontFace.Metrics().Height + fontFace.Metrics().Descent
-				labelBounds, _ := font.BoundString(fontFace, cfg.LabelSizing)
+				mode := cfg.IDSequence[i]
 
-				for y := 0; y < cfg.Rows; y++ {
-					yTop := lineHeight.Ceil() + (lineHeight.Ceil()+cellSize)*(y)
-					for x := 0; x < cfg.Columns; x++ {
-						xLeft := IntMax(labelBounds.Max.X.Ceil(), cellSize) * x
-						width := IntMax(labelBounds.Max.X.Ceil(), cellSize)
-						r := image.Rect(
-							xLeft,
-							yTop,
-							xLeft+width-1,
-							yTop+cellSize-1,
-						)
+				// Extract
+				subImg := image.NewRGBA(image.Rect(0, 0, r.Dx(), r.Dy()))
+				draw.Draw(subImg, subImg.Bounds(), fullImg, r.Min, draw.Src)
 
-						// Centering logic (from Builder)
-						dy, dx := r.Dy(), r.Dx()
-						if dy > cellSize {
-							r.Min.Y += (dy - cellSize) / 2
-							r.Max.Y -= (dy - cellSize) / 2
-						}
-						if dx > cellSize {
-							r.Min.X += (dx - cellSize) / 2
-							r.Max.X -= (dx - cellSize) / 2
-						}
+				// Save
+				outFile := filepath.Join(outDir, fmt.Sprintf("%d.png", mode))
+				f, err := os.Create(outFile)
+				if err != nil {
+					t.Errorf("Failed to create %s: %v", outFile, err)
+					continue
+				}
+				png.Encode(f, subImg)
+				f.Close()
 
-						mode := x + y*cfg.Columns
-						processCell(t, fullImg, r, mode, cfg.Colors, outDir)
+				// Verify
+				t.Run(fmt.Sprintf("Mode_%d", mode), func(t *testing.T) {
+					src := NewColourSource(mode, cfg.Colors...)
+					genImg := image.NewRGBA(image.Rect(0, 0, r.Dx(), r.Dy()))
+					draw.Draw(genImg, genImg.Bounds(), src, image.Point{}, draw.Src)
+
+					diff, diffPct, err := compareImages(genImg, subImg)
+					if err != nil {
+						t.Errorf("Comparison failed: %v", err)
+					} else if diff > 0 {
+						t.Errorf("Difference: %d pixels (%.2f%%)", diff, diffPct*100)
 					}
-				}
+				})
 			}
 		})
 	}
 }
 
-func processCell(t *testing.T, fullImg image.Image, r image.Rectangle, mode int, palette []color.Color, outDir string) {
-	intersect := r.Intersect(fullImg.Bounds())
-	if intersect.Empty() {
-		return
+func makeRange(min, max int) []int {
+	a := make([]int, max-min+1)
+	for i := range a {
+		a[i] = min + i
 	}
+	return a
+}
 
-	// Extract full cell/pattern rect
-	subImg := image.NewRGBA(image.Rect(0, 0, r.Dx(), r.Dy()))
-	draw.Draw(subImg, subImg.Bounds(), fullImg, r.Min, draw.Src)
+func findPatternBlobs(img image.Image) []image.Rectangle {
+	bounds := img.Bounds()
+	visited := make([]bool, bounds.Dx()*bounds.Dy())
+	var blobs []image.Rectangle
 
-	if isUniform(subImg) {
-		return
-	}
+	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+		for x := bounds.Min.X; x < bounds.Max.X; x++ {
+			idx := (y-bounds.Min.Y)*bounds.Dx() + (x - bounds.Min.X)
+			if visited[idx] {
+				continue
+			}
 
-	// Save reference PNG (Decimal Name)
-	outFile := filepath.Join(outDir, fmt.Sprintf("%d.png", mode))
-	f, err := os.Create(outFile)
-	if err != nil {
-		t.Errorf("Failed to create %s: %v", outFile, err)
-		return
-	}
-	png.Encode(f, subImg)
-	f.Close()
+			if !isWhite(img.At(x, y)) {
+				// BFS
+				minX, maxX := x, x
+				minY, maxY := y, y
+				q := []image.Point{{x, y}}
+				visited[idx] = true
 
-	// Verify
-	t.Run(fmt.Sprintf("Mode_%d", mode), func(t *testing.T) {
-		// Generate
-		src := NewColourSource(mode, palette...)
-		genImg := image.NewRGBA(image.Rect(0, 0, r.Dx(), r.Dy()))
-		draw.Draw(genImg, genImg.Bounds(), src, image.Point{}, draw.Src)
+				for len(q) > 0 {
+					p := q[0]
+					q = q[1:]
 
-		// Compare
-		diff, diffPct, err := compareImages(genImg, subImg)
-		if err != nil {
-			t.Errorf("Comparison failed: %v", err)
-		} else if diff > 0 {
-			t.Errorf("Difference: %d pixels (%.2f%%)", diff, diffPct*100)
+					if p.X < minX { minX = p.X }
+					if p.X > maxX { maxX = p.X }
+					if p.Y < minY { minY = p.Y }
+					if p.Y > maxY { maxY = p.Y }
+
+					dirs := []image.Point{{0, 1}, {0, -1}, {1, 0}, {-1, 0}}
+					for _, d := range dirs {
+						nx, ny := p.X+d.X, p.Y+d.Y
+						if nx >= bounds.Min.X && nx < bounds.Max.X && ny >= bounds.Min.Y && ny < bounds.Max.Y {
+							nIdx := (ny-bounds.Min.Y)*bounds.Dx() + (nx - bounds.Min.X)
+							if !visited[nIdx] {
+								if !isWhite(img.At(nx, ny)) {
+									visited[nIdx] = true
+									q = append(q, image.Point{nx, ny})
+								}
+							}
+						}
+					}
+				}
+
+				rect := image.Rect(minX, minY, maxX+1, maxY+1)
+				// Filter for "Pattern" size (heuristic: patterns are larger than labels)
+				// 110.png is 67x39. Labels are small text.
+				// Let's filter > 20x20
+				if rect.Dx() > 20 && rect.Dy() > 20 {
+					blobs = append(blobs, rect)
+				}
+			}
 		}
+	}
+	return blobs
+}
+
+func sortBlobsSpatial(blobs []image.Rectangle) {
+	sort.Slice(blobs, func(i, j int) bool {
+		// Row binning logic
+		// Assume rows are separated by at least 20px
+		if blobs[i].Min.Y/40 != blobs[j].Min.Y/40 {
+			return blobs[i].Min.Y < blobs[j].Min.Y
+		}
+		return blobs[i].Min.X < blobs[j].Min.X
 	})
 }
