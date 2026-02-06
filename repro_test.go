@@ -121,6 +121,7 @@ func readBMP(path string) (image.Image, error) {
 	return img, nil
 }
 
+
 func isUniform(img image.Image) bool {
 	b := img.Bounds()
 	if b.Dx() == 0 || b.Dy() == 0 {
@@ -216,9 +217,9 @@ func TestReproducePatterns(t *testing.T) {
 
 	configs := map[string]Config{
 		"128BWGR.BMP": {
-			Title: "128 BWGR",
+			Title:       "128 BWGR",
 			// Rows/Cols unused if CustomGrid present
-			CustomGrid: customGrid128,
+			CustomGrid:  customGrid128,
 			Colors: []color.Color{
 				color.RGBA{0, 0, 0, 255},
 				color.RGBA{255, 255, 255, 255},
@@ -292,8 +293,8 @@ func TestReproducePatterns(t *testing.T) {
 						r := image.Rect(
 							xLeft,
 							yTop,
-							xLeft+width-1,
-							yTop+cellSize-1,
+							xLeft + width - 1,
+							yTop + cellSize - 1,
 						)
 
 						// Centering logic (from Builder)
