@@ -43,10 +43,6 @@ func (cs *LegacyColourSource) At(x, y int) color.Color {
 	}
 	n := cs.mode
 	for i := 0; i < 4 && n > 0; i++ {
-		v := 5
-		if i == 0 {
-			v -= 1
-		}
 		south[i] = n % 4
 		n /= 4
 	}

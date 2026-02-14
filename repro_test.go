@@ -114,39 +114,6 @@ func isWhite(c color.Color) bool {
 	return r > 0xF000 && g > 0xF000 && b > 0xF000
 }
 
-func trimWhitespace(img image.Image) image.Image {
-	b := img.Bounds()
-	minX, minY, maxX, maxY := b.Max.X, b.Max.Y, b.Min.X, b.Min.Y
-	found := false
-
-	for y := b.Min.Y; y < b.Max.Y; y++ {
-		for x := b.Min.X; x < b.Max.X; x++ {
-			if !isWhite(img.At(x, y)) {
-				if x < minX {
-					minX = x
-				}
-				if x > maxX {
-					maxX = x
-				}
-				if y < minY {
-					minY = y
-				}
-				if y > maxY {
-					maxY = y
-				}
-				found = true
-			}
-		}
-	}
-
-	if !found {
-		return img // Return original if all white (should generally not happen with filtered blobs)
-	}
-
-	// Add 1 to max to include the pixel
-	return subImage(img, image.Rect(minX, minY, maxX+1, maxY+1))
-}
-
 func subImage(img image.Image, r image.Rectangle) image.Image {
 	if paletted, ok := img.(*image.Paletted); ok {
 		return paletted.SubImage(r)
@@ -290,7 +257,9 @@ func TestReproducePatterns(t *testing.T) {
 					t.Errorf("Failed to create %s: %v", outFile, err)
 					continue
 				}
-				png.Encode(f, subImg)
+				if err := png.Encode(f, subImg); err != nil {
+					t.Errorf("Failed to encode %s: %v", outFile, err)
+				}
 				f.Close()
 
 				// Save Text Label (Simulated OCR)
