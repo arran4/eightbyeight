@@ -6,6 +6,10 @@ import (
 	"log"
 )
 
+func init() {
+	log.SetFlags(log.Flags() | log.Lshortfile)
+}
+
 // GenerateAll is a subcommand `eightbyeight all`
 // Generate all examples
 func GenerateAll() {
