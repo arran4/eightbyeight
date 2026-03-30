@@ -54,7 +54,7 @@ func readBMP(path string) (image.Image, error) {
 			if _, err := io.ReadFull(f, pData); err != nil {
 				return nil, err
 			}
-			for i := 0; i < numColors; i++ {
+			for i := range numColors {
 				b := pData[i*4]
 				g := pData[i*4+1]
 				r := pData[i*4+2]

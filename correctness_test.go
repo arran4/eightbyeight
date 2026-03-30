@@ -81,13 +81,13 @@ func TestColourSource_Correctness(t *testing.T) {
 
 	colors := []color.Color{color.White, color.Black}
 
-	for mode := 0; mode < 512; mode++ {
+	for mode := range 512 {
 		optimized := NewColourSource(mode, colors...)
 		legacy := NewLegacyColourSource(mode, colors...)
 
 		// Test a grid larger than sz (8) to ensure tiling works
-		for y := 0; y < 16; y++ {
-			for x := 0; x < 16; x++ {
+		for y := range 16 {
+			for x := range 16 {
 				optColor := optimized.At(x, y)
 				legColor := legacy.At(x, y)
 
