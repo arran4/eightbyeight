@@ -1,0 +1,20 @@
+FROM golang:1.26-alpine AS builder
+
+WORKDIR /app
+
+RUN apk add --no-cache gcc musl-dev
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+
+# Run format, fix, and tests
+RUN go fmt ./... && go fix ./... && go test -v ./...
+
+# Install golangci-lint and run it
+RUN wget -O- -nv https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.64.6
+RUN golangci-lint run
+
+# Build the app to ensure it builds correctly
+RUN go build -o eightbyeight ./cmd/eightbyeight
