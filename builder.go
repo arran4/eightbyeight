@@ -124,9 +124,9 @@ func (b *GridBuilder) Generate() image.Image {
 	}
 	d.DrawString(b.Title)
 	log.Printf("Drawing grid with labels")
-	for y := 0; y < lines; y++ {
+	for y := range lines {
 		yTop := lineHeight.Ceil() + (lineHeight.Ceil()+b.CellSize)*(y)
-		for x := 0; x < lineLength; x++ {
+		for x := range lineLength {
 			xLeft := IntMax(labelBounds.Max.X.Ceil(), b.CellSize) * x
 			r := image.Rect(
 				xLeft,
