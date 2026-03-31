@@ -2,14 +2,14 @@ package eightbyeight
 
 import (
 	"image/color"
-	"io/ioutil"
+	"io"
 	"log"
 	"testing"
 )
 
 func BenchmarkGridBuilder_Generate(b *testing.B) {
 	// Suppress logging
-	log.SetOutput(ioutil.Discard)
+	log.SetOutput(io.Discard)
 
 	// Setup a builder with a larger grid to emphasize the loop performance
 	builder := NewGridBuilder().
