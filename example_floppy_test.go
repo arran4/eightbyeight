@@ -11,56 +11,26 @@ import (
 	"github.com/arran4/eightbyeight"
 )
 
-// FloppyMask defines a simple 16x16 mask for a floppy disk.
-// 1 represents the floppy body, 0 represents transparent areas (like the label and the slider).
-var floppyMaskData = []byte{
-	0,0,1,1,1,1,1,1,1,1,1,1,1,1,0,0,
-	0,0,1,1,1,1,1,1,1,1,1,1,1,1,0,0,
-	0,0,1,1,0,0,0,0,0,0,0,0,1,1,0,0,
-	0,0,1,1,0,0,0,0,0,0,0,0,1,1,0,0,
-	0,0,1,1,0,0,0,0,0,0,0,0,1,1,0,0,
-	0,0,1,1,0,0,0,0,0,0,0,0,1,1,0,0,
-	0,0,1,1,1,1,1,1,1,1,1,1,1,1,0,0,
-	0,0,1,1,1,1,1,1,1,1,1,1,1,1,0,0,
-	0,0,1,1,1,1,0,0,0,0,1,1,1,1,0,0,
-	0,0,1,1,1,1,0,0,0,0,1,1,1,1,0,0,
-	0,0,1,1,1,1,0,0,0,0,1,1,1,1,0,0,
-	0,0,1,1,1,1,0,0,0,0,1,1,1,1,0,0,
-	0,0,1,1,1,1,0,0,0,0,1,1,1,1,0,0,
-	0,0,1,1,1,1,1,1,1,1,1,1,1,1,0,0,
-	0,0,1,1,1,1,1,1,1,1,1,1,1,1,0,0,
-	0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-}
-
-type FloppyMask struct{}
-
-func (m *FloppyMask) ColorModel() color.Model { return color.AlphaModel }
-func (m *FloppyMask) Bounds() image.Rectangle { return image.Rect(0, 0, 16, 16) }
-func (m *FloppyMask) At(x, y int) color.Color {
-	if x < 0 || x >= 16 || y < 0 || y >= 16 {
-		return color.Alpha{0}
-	}
-	if floppyMaskData[y*16+x] == 1 {
-		return color.Alpha{255}
-	}
-	return color.Alpha{0}
-}
-
 func ExampleColourSource_floppy() {
 	// Create a new RGBA image to draw into
-	dst := image.NewRGBA(image.Rect(0, 0, 16, 16))
+	dst := image.NewRGBA(image.Rect(0, 0, 128, 128))
 
 	// Fill background with white
 	draw.Draw(dst, dst.Bounds(), image.NewUniform(color.White), image.Point{}, draw.Src)
 
-	// Create a ColourSource pattern
-	pattern := eightbyeight.NewColourSource(110, color.White, color.Black)
+	// Draw plastic base
+	plasticPattern := eightbyeight.NewColourSource(110, color.RGBA{0, 255, 255, 255}, color.RGBA{255, 0, 255, 255})
+	draw.Draw(dst, image.Rect(16, 16, 112, 112), plasticPattern, image.Point{}, draw.Over)
+	draw.Draw(dst, image.Rect(96, 16, 112, 32), image.NewUniform(color.White), image.Point{}, draw.Src) // Notch
 
-	// Define the mask for the floppy disk
-	mask := &FloppyMask{}
+	// Metal slider
+	metalPattern := eightbyeight.NewColourSource(42, color.RGBA{220, 220, 220, 255}, color.RGBA{160, 160, 160, 255})
+	draw.Draw(dst, image.Rect(40, 16, 88, 48), metalPattern, image.Point{}, draw.Over)
+	draw.Draw(dst, image.Rect(72, 24, 80, 40), image.NewUniform(color.Black), image.Point{}, draw.Src) // Hole
 
-	// Fill the destination image using the mask and the pattern
-	draw.DrawMask(dst, dst.Bounds(), pattern, image.Point{}, mask, image.Point{}, draw.Over)
+	// Label
+	draw.Draw(dst, image.Rect(28, 56, 100, 108), image.NewUniform(color.White), image.Point{}, draw.Src)
+	draw.Draw(dst, image.Rect(36, 68, 92, 72), image.NewUniform(color.Black), image.Point{}, draw.Src) // Text
 
 	f, err := os.Create("out_floppy.png")
 	if err != nil {

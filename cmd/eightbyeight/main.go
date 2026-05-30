@@ -12,39 +12,37 @@ import (
 	"github.com/arran4/eightbyeight"
 )
 
-// FloppyMask defines a simple 16x16 mask for a floppy disk.
-// 1 represents the floppy body, 0 represents transparent areas (like the label and the slider).
-var floppyMaskData = []byte{
-	0,0,1,1,1,1,1,1,1,1,1,1,1,1,0,0,
-	0,0,1,1,1,1,1,1,1,1,1,1,1,1,0,0,
-	0,0,1,1,0,0,0,0,0,0,0,0,1,1,0,0,
-	0,0,1,1,0,0,0,0,0,0,0,0,1,1,0,0,
-	0,0,1,1,0,0,0,0,0,0,0,0,1,1,0,0,
-	0,0,1,1,0,0,0,0,0,0,0,0,1,1,0,0,
-	0,0,1,1,1,1,1,1,1,1,1,1,1,1,0,0,
-	0,0,1,1,1,1,1,1,1,1,1,1,1,1,0,0,
-	0,0,1,1,1,1,0,0,0,0,1,1,1,1,0,0,
-	0,0,1,1,1,1,0,0,0,0,1,1,1,1,0,0,
-	0,0,1,1,1,1,0,0,0,0,1,1,1,1,0,0,
-	0,0,1,1,1,1,0,0,0,0,1,1,1,1,0,0,
-	0,0,1,1,1,1,0,0,0,0,1,1,1,1,0,0,
-	0,0,1,1,1,1,1,1,1,1,1,1,1,1,0,0,
-	0,0,1,1,1,1,1,1,1,1,1,1,1,1,0,0,
-	0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-}
+// DrawFloppy draws a stylized 90s aesthetic Windows 3.11 floppy disk to the given destination.
+// It uses multiple ColourSource patterns to simulate plastic, metal, and label textures.
+func DrawFloppy(dst *image.RGBA) {
+	// Base floppy shape
+	// Win 3.11 floppy disks had colored plastic, e.g., bright blue or magenta.
+	// Let's use a nice patterned cyan/magenta for the plastic shell.
+	plasticPattern := eightbyeight.NewColourSource(110, color.RGBA{0, 255, 255, 255}, color.RGBA{255, 0, 255, 255})
 
-type FloppyMask struct{}
+	// Create plastic shape: basic square, minus the top-right notch
+	plasticRect := image.Rect(16, 16, 112, 112)
+	draw.Draw(dst, plasticRect, plasticPattern, image.Point{}, draw.Over)
 
-func (m *FloppyMask) ColorModel() color.Model { return color.AlphaModel }
-func (m *FloppyMask) Bounds() image.Rectangle { return image.Rect(0, 0, 16, 16) }
-func (m *FloppyMask) At(x, y int) color.Color {
-	if x < 0 || x >= 16 || y < 0 || y >= 16 {
-		return color.Alpha{0}
-	}
-	if floppyMaskData[y*16+x] == 1 {
-		return color.Alpha{255}
-	}
-	return color.Alpha{0}
+	// Top right notch (transparent/background)
+	draw.Draw(dst, image.Rect(96, 16, 112, 32), image.NewUniform(color.RGBA{255, 255, 255, 255}), image.Point{}, draw.Src)
+
+	// Metal slider: top middle (shiny metallic pattern)
+	metalPattern := eightbyeight.NewColourSource(42, color.RGBA{220, 220, 220, 255}, color.RGBA{160, 160, 160, 255})
+	sliderRect := image.Rect(40, 16, 88, 48)
+	draw.Draw(dst, sliderRect, metalPattern, image.Point{}, draw.Over)
+
+	// Slider groove/hole
+	draw.Draw(dst, image.Rect(72, 24, 80, 40), image.NewUniform(color.Black), image.Point{}, draw.Src)
+
+	// White label: bottom middle
+	labelRect := image.Rect(28, 56, 100, 108)
+	draw.Draw(dst, labelRect, image.NewUniform(color.White), image.Point{}, draw.Src)
+
+	// Label lines (text simulation)
+	draw.Draw(dst, image.Rect(36, 68, 92, 72), image.NewUniform(color.Black), image.Point{}, draw.Src)
+	draw.Draw(dst, image.Rect(36, 80, 92, 84), image.NewUniform(color.Black), image.Point{}, draw.Src)
+	draw.Draw(dst, image.Rect(36, 92, 76, 96), image.NewUniform(color.Black), image.Point{}, draw.Src)
 }
 
 func main() {
@@ -111,12 +109,11 @@ func main() {
 		log.Panic(err)
 	}
 
-	// Example 5: Floppy Disk with draw.DrawMask
-	// Demonstrates using a mask to draw a patterned shape
-	dst := image.NewRGBA(image.Rect(0, 0, 16, 16))
+	// Example 5: Stylized Floppy Disk
+	// Demonstrates drawing a stylized 90s aesthetic floppy using multiple image/draw operations and patterns
+	dst := image.NewRGBA(image.Rect(0, 0, 128, 128))
 	draw.Draw(dst, dst.Bounds(), image.NewUniform(color.White), image.Point{}, draw.Src)
-	pattern := eightbyeight.NewColourSource(110, color.White, color.Black)
-	draw.DrawMask(dst, dst.Bounds(), pattern, image.Point{}, &FloppyMask{}, image.Point{}, draw.Over)
+	DrawFloppy(dst)
 
 	f, err := os.Create("out_floppy.png")
 	if err != nil {

@@ -26,7 +26,7 @@ The output are PNG images with a title, a grid of patterns, and labels.
 
 ### Usage with image/draw
 
-You can use `ColourSource` as a source image in `draw.Draw` or `draw.DrawMask` to fill shapes with patterns, like drawing a floppy disk icon:
+You can use `ColourSource` as a source image in `draw.Draw` to fill shapes with patterns, like drawing a stylized 90s aesthetic floppy disk:
 
 ```go
 import (
@@ -39,13 +39,13 @@ import (
 // ...
 
 // Create a new image to draw into
-dst := image.NewRGBA(image.Rect(0, 0, 16, 16))
+dst := image.NewRGBA(image.Rect(0, 0, 128, 128))
 
-// Create a ColourSource pattern
-pattern := eightbyeight.NewColourSource(110, color.White, color.Black)
+// Create a ColourSource pattern for the plastic shell
+plasticPattern := eightbyeight.NewColourSource(110, color.RGBA{0, 255, 255, 255}, color.RGBA{255, 0, 255, 255})
 
-// Fill the destination image using the mask and the pattern
-draw.DrawMask(dst, dst.Bounds(), pattern, image.Point{}, floppyMask, image.Point{}, draw.Over)
+// Fill the destination image using the pattern
+draw.Draw(dst, image.Rect(16, 16, 112, 112), plasticPattern, image.Point{}, draw.Over)
 ```
 
 ## Examples
