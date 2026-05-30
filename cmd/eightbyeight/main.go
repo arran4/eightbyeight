@@ -1,10 +1,51 @@
 package main
 
 import (
-	"github.com/arran4/eightbyeight"
+	"fmt"
+	"image"
 	"image/color"
+	"image/draw"
+	"image/png"
 	"log"
+	"os"
+
+	"github.com/arran4/eightbyeight"
 )
+
+// FloppyMask defines a simple 16x16 mask for a floppy disk.
+// 1 represents the floppy body, 0 represents transparent areas (like the label and the slider).
+var floppyMaskData = []byte{
+	0,0,1,1,1,1,1,1,1,1,1,1,1,1,0,0,
+	0,0,1,1,1,1,1,1,1,1,1,1,1,1,0,0,
+	0,0,1,1,0,0,0,0,0,0,0,0,1,1,0,0,
+	0,0,1,1,0,0,0,0,0,0,0,0,1,1,0,0,
+	0,0,1,1,0,0,0,0,0,0,0,0,1,1,0,0,
+	0,0,1,1,0,0,0,0,0,0,0,0,1,1,0,0,
+	0,0,1,1,1,1,1,1,1,1,1,1,1,1,0,0,
+	0,0,1,1,1,1,1,1,1,1,1,1,1,1,0,0,
+	0,0,1,1,1,1,0,0,0,0,1,1,1,1,0,0,
+	0,0,1,1,1,1,0,0,0,0,1,1,1,1,0,0,
+	0,0,1,1,1,1,0,0,0,0,1,1,1,1,0,0,
+	0,0,1,1,1,1,0,0,0,0,1,1,1,1,0,0,
+	0,0,1,1,1,1,0,0,0,0,1,1,1,1,0,0,
+	0,0,1,1,1,1,1,1,1,1,1,1,1,1,0,0,
+	0,0,1,1,1,1,1,1,1,1,1,1,1,1,0,0,
+	0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+}
+
+type FloppyMask struct{}
+
+func (m *FloppyMask) ColorModel() color.Model { return color.AlphaModel }
+func (m *FloppyMask) Bounds() image.Rectangle { return image.Rect(0, 0, 16, 16) }
+func (m *FloppyMask) At(x, y int) color.Color {
+	if x < 0 || x >= 16 || y < 0 || y >= 16 {
+		return color.Alpha{0}
+	}
+	if floppyMaskData[y*16+x] == 1 {
+		return color.Alpha{255}
+	}
+	return color.Alpha{0}
+}
 
 func main() {
 	log.SetFlags(log.Flags() | log.Lshortfile)
@@ -69,4 +110,21 @@ func main() {
 		Save("out_mixing.png"); err != nil {
 		log.Panic(err)
 	}
+
+	// Example 5: Floppy Disk with draw.DrawMask
+	// Demonstrates using a mask to draw a patterned shape
+	dst := image.NewRGBA(image.Rect(0, 0, 16, 16))
+	draw.Draw(dst, dst.Bounds(), image.NewUniform(color.White), image.Point{}, draw.Src)
+	pattern := eightbyeight.NewColourSource(110, color.White, color.Black)
+	draw.DrawMask(dst, dst.Bounds(), pattern, image.Point{}, &FloppyMask{}, image.Point{}, draw.Over)
+
+	f, err := os.Create("out_floppy.png")
+	if err != nil {
+		log.Panic(fmt.Errorf("failed to create out_floppy.png: %w", err))
+	}
+	defer f.Close()
+	if err := png.Encode(f, dst); err != nil {
+		log.Panic(fmt.Errorf("failed to encode out_floppy.png: %w", err))
+	}
+	log.Println("Output saved to out_floppy.png")
 }

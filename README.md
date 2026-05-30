@@ -24,6 +24,30 @@ This will generate four files in the current directory:
 
 The output are PNG images with a title, a grid of patterns, and labels.
 
+### Usage with image/draw
+
+You can use `ColourSource` as a source image in `draw.Draw` or `draw.DrawMask` to fill shapes with patterns, like drawing a floppy disk icon:
+
+```go
+import (
+	"image"
+	"image/color"
+	"image/draw"
+	"github.com/arran4/eightbyeight"
+)
+
+// ...
+
+// Create a new image to draw into
+dst := image.NewRGBA(image.Rect(0, 0, 16, 16))
+
+// Create a ColourSource pattern
+pattern := eightbyeight.NewColourSource(110, color.White, color.Black)
+
+// Fill the destination image using the mask and the pattern
+draw.DrawMask(dst, dst.Bounds(), pattern, image.Point{}, floppyMask, image.Point{}, draw.Over)
+```
+
 ## Examples
 
 Examples of generated patterns can be found in the `exampledata/` directory.
