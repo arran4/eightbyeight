@@ -66,6 +66,9 @@ Here are the generated outputs:
 ### CGA Color Mixing
 ![CGA Mixing Output](out_mixing.png)
 
+### Stylized Floppy Disk Example
+![Floppy Disk Output](out_floppy.png)
+
 ## Builder
 
 The project includes a `GridBuilder` to programmatically configure and generate these pattern grids.
