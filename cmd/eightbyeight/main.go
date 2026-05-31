@@ -21,28 +21,28 @@ func DrawFloppy(dst *image.RGBA) {
 	plasticPattern := eightbyeight.NewColourSource(110, color.RGBA{0, 255, 255, 255}, color.RGBA{255, 0, 255, 255})
 
 	// Create plastic shape: basic square, minus the top-right notch
-	plasticRect := image.Rect(16, 16, 112, 112)
+	plasticRect := image.Rect(32, 32, 224, 224)
 	draw.Draw(dst, plasticRect, plasticPattern, image.Point{}, draw.Over)
 
 	// Top right notch (transparent/background)
-	draw.Draw(dst, image.Rect(96, 16, 112, 32), image.NewUniform(color.RGBA{255, 255, 255, 255}), image.Point{}, draw.Src)
+	draw.Draw(dst, image.Rect(192, 32, 224, 64), image.NewUniform(color.RGBA{255, 255, 255, 255}), image.Point{}, draw.Src)
 
 	// Metal slider: top middle (shiny metallic pattern)
 	metalPattern := eightbyeight.NewColourSource(42, color.RGBA{220, 220, 220, 255}, color.RGBA{160, 160, 160, 255})
-	sliderRect := image.Rect(40, 16, 88, 48)
+	sliderRect := image.Rect(80, 32, 176, 96)
 	draw.Draw(dst, sliderRect, metalPattern, image.Point{}, draw.Over)
 
 	// Slider groove/hole
-	draw.Draw(dst, image.Rect(72, 24, 80, 40), image.NewUniform(color.Black), image.Point{}, draw.Src)
+	draw.Draw(dst, image.Rect(144, 48, 160, 80), image.NewUniform(color.Black), image.Point{}, draw.Src)
 
 	// White label: bottom middle
-	labelRect := image.Rect(28, 56, 100, 108)
+	labelRect := image.Rect(56, 112, 200, 216)
 	draw.Draw(dst, labelRect, image.NewUniform(color.White), image.Point{}, draw.Src)
 
 	// Label lines (text simulation)
-	draw.Draw(dst, image.Rect(36, 68, 92, 72), image.NewUniform(color.Black), image.Point{}, draw.Src)
-	draw.Draw(dst, image.Rect(36, 80, 92, 84), image.NewUniform(color.Black), image.Point{}, draw.Src)
-	draw.Draw(dst, image.Rect(36, 92, 76, 96), image.NewUniform(color.Black), image.Point{}, draw.Src)
+	draw.Draw(dst, image.Rect(72, 136, 184, 144), image.NewUniform(color.Black), image.Point{}, draw.Src)
+	draw.Draw(dst, image.Rect(72, 160, 184, 168), image.NewUniform(color.Black), image.Point{}, draw.Src)
+	draw.Draw(dst, image.Rect(72, 184, 152, 192), image.NewUniform(color.Black), image.Point{}, draw.Src)
 }
 
 func main() {
@@ -111,7 +111,7 @@ func main() {
 
 	// Example 5: Stylized Floppy Disk
 	// Demonstrates drawing a stylized 90s aesthetic floppy using multiple image/draw operations and patterns
-	dst := image.NewRGBA(image.Rect(0, 0, 128, 128))
+	dst := image.NewRGBA(image.Rect(0, 0, 256, 256))
 	draw.Draw(dst, dst.Bounds(), image.NewUniform(color.White), image.Point{}, draw.Src)
 	DrawFloppy(dst)
 

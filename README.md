@@ -39,13 +39,13 @@ import (
 // ...
 
 // Create a new image to draw into
-dst := image.NewRGBA(image.Rect(0, 0, 128, 128))
+dst := image.NewRGBA(image.Rect(0, 0, 256, 256))
 
 // Create a ColourSource pattern for the plastic shell
 plasticPattern := eightbyeight.NewColourSource(110, color.RGBA{0, 255, 255, 255}, color.RGBA{255, 0, 255, 255})
 
 // Fill the destination image using the pattern
-draw.Draw(dst, image.Rect(16, 16, 112, 112), plasticPattern, image.Point{}, draw.Over)
+draw.Draw(dst, image.Rect(32, 32, 224, 224), plasticPattern, image.Point{}, draw.Over)
 ```
 
 ## Examples
