@@ -11,10 +11,15 @@ The tool creates a grid where each cell contains a unique 8x8 pattern. It render
 To run the project, you need Go installed.
 
 ```bash
-go run cmd/eightbyeight/main.go
+go run ./cmd/eightbyeight all
 ```
 
-This will generate four files in the current directory:
+You can also run specific examples using subcommands:
+- `grid`: Generates the standard 8x8 pattern grid variants.
+- `floppy`: Generates a stylized 90s aesthetic floppy disk to demonstrate drawing shapes.
+- `all`: Generates both grid and floppy outputs.
+
+Running the `all` or `grid` command will generate four files in the current directory:
 - `out_bw.png`: Classic Black on White
 - `out_terminal.png`: Green on Black (Terminal style)
 - `out_solarized.png`: Solarized Light color scheme
@@ -23,6 +28,30 @@ This will generate four files in the current directory:
 ## Output
 
 The output are PNG images with a title, a grid of patterns, and labels.
+
+### Usage with image/draw
+
+You can use `ColourSource` as a source image in `draw.Draw` to fill shapes with patterns, like drawing a stylized 90s aesthetic floppy disk:
+
+```go
+import (
+	"image"
+	"image/color"
+	"image/draw"
+	"github.com/arran4/eightbyeight"
+)
+
+// ...
+
+// Create a new image to draw into
+dst := image.NewRGBA(image.Rect(0, 0, 256, 256))
+
+// Create a ColourSource pattern for the plastic shell
+plasticPattern := eightbyeight.NewColourSource(110, color.RGBA{0, 255, 255, 255}, color.RGBA{255, 0, 255, 255})
+
+// Fill the destination image using the pattern
+draw.Draw(dst, image.Rect(32, 32, 224, 224), plasticPattern, image.Point{}, draw.Over)
+```
 
 ## Examples
 
@@ -41,6 +70,9 @@ Here are the generated outputs:
 
 ### CGA Color Mixing
 ![CGA Mixing Output](out_mixing.png)
+
+### Stylized Floppy Disk Example
+![Floppy Disk Output](out_floppy.png)
 
 ## Builder
 

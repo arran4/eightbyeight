@@ -1,14 +1,15 @@
 package main
 
 import (
-	"github.com/arran4/eightbyeight"
+	"fmt"
 	"image/color"
 	"log"
+	"os"
+
+	"github.com/arran4/eightbyeight"
 )
 
-func main() {
-	log.SetFlags(log.Flags() | log.Lshortfile)
-
+func runGridExamples() {
 	// Example 1: Classic Black on White
 	// Good for checking basic patterns clearly.
 	if err := eightbyeight.NewGridBuilder().
@@ -68,5 +69,33 @@ func main() {
 		WithColors(cgaPalette).
 		Save("out_mixing.png"); err != nil {
 		log.Panic(err)
+	}
+}
+
+func main() {
+	log.SetFlags(log.Flags() | log.Lshortfile)
+
+	if len(os.Args) < 2 {
+		fmt.Println("Usage: eightbyeight <subcommand>")
+		fmt.Println("Subcommands:")
+		fmt.Println("  grid    Generate the standard pattern grid examples")
+		fmt.Println("  floppy  Generate the stylized floppy disk example")
+		fmt.Println("  all     Generate all examples")
+		os.Exit(1)
+	}
+
+	subcommand := os.Args[1]
+
+	switch subcommand {
+	case "grid":
+		runGridExamples()
+	case "floppy":
+		ExampleFloppy()
+	case "all":
+		runGridExamples()
+		ExampleFloppy()
+	default:
+		fmt.Printf("Unknown subcommand: %s\n", subcommand)
+		os.Exit(1)
 	}
 }
