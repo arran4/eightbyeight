@@ -11,10 +11,15 @@ The tool creates a grid where each cell contains a unique 8x8 pattern. It render
 To run the project, you need Go installed.
 
 ```bash
-go run cmd/eightbyeight/main.go
+go run ./cmd/eightbyeight all
 ```
 
-This will generate four files in the current directory:
+You can also run specific examples using subcommands:
+- `grid`: Generates the standard 8x8 pattern grid variants.
+- `floppy`: Generates a stylized 90s aesthetic floppy disk to demonstrate drawing shapes.
+- `all`: Generates both grid and floppy outputs.
+
+Running the `all` or `grid` command will generate four files in the current directory:
 - `out_bw.png`: Classic Black on White
 - `out_terminal.png`: Green on Black (Terminal style)
 - `out_solarized.png`: Solarized Light color scheme
